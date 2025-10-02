@@ -1,0 +1,55 @@
+# p1
+A: 14.12 dB
+B: 16.37 dB
+C: 16.88 dB
+D: 18.67 dB
+E: 16.63 dB
+
+# p2 with threshold 3
+A: 14.10 dB
+B: 16.31 dB
+C: 17.24 dB
+D: 18.92 dB
+E: 16.83 dB
+
+# p2 with threshold 5
+A: 14.10 dB
+B: 16.32 dB
+C: 17.24 dB
+D: 18.92 dB
+E: 16.84 dB
+
+# p2 with threshold 10
+A: 14.11 dB
+B: 16.32 dB
+C: 17.24 dB
+D: 18.94 dB
+E: 16.83 dB
+
+# p2 with threshold 20
+A: 14.12 dB
+B: 16.35 dB
+C: 17.24 dB
+D: 18.96 dB
+E: 16.84 dB
+
+# p2 with threshold 30
+A: 14.12 dB
+B: 16.37 dB
+C: 17.25 dB
+D: 18.97 dB
+E: 16.85 dB
+
+# p2 with threshold 50
+A: 14.12 dB
+B: 16.42 dB
+C: 17.25 dB
+D: 18.98 dB
+E: 16.86 dB
+
+# p3 
+A: 30.16 dB
+B: 25.62 dB
+C: 33.05 dB
+D: 36.79 dB
+E: 30.10 dB
