@@ -163,7 +163,7 @@ if __name__ == "__main__":
     rgb_result = stochastic_demosaicing(bayer_image)
     input_file_name = os.path.basename(args.input_image)
     output_file_name = f"{os.path.splitext(input_file_name)[0]}.png"
-    output_dir = "./output/p3/"
+    output_dir = "./images/p3/"
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     output_path = os.path.join(output_dir, output_file_name)
