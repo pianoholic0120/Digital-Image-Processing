@@ -251,7 +251,7 @@ if __name__ == "__main__":
     parser.add_argument("--reference_image", type=str, required=True)
     parser.add_argument("--output_image", type=str, required=True)
     parser.add_argument("--output_metrics", type=str)
-    parser.add_argument("--method", type=str, default='adaptive', 
+    parser.add_argument("--method", type=str, default='chrominance', 
                         choices=['original', 'local', 'gamma', 'adaptive_clahe', 
                                 'chrominance', 'adaptive', 'hybrid'],
                         help="Tone mapping method to use")
@@ -317,4 +317,3 @@ if __name__ == "__main__":
             f.write(f"PSNR after:  {metrics['psnr_after']:.4f} dB\n")
             f.write(f"Improvement: {metrics['psnr_improvement_db']:.4f} dB\n")
         print(f"Metrics saved to: {args.output_metrics}")
-
