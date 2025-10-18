@@ -53,61 +53,25 @@ def histogram_match(source, reference):
     return matched, lut
 
 def chrominance_aware_tone_mapping(source_img, reference_img):
-    """
-    Optimized chrominance-aware tone mapping with improved color preservation.
-    Returns the result image and the tone mapping curves (LUTs) for each channel.
-    """
     source_ycrcb = cv2.cvtColor(source_img, cv2.COLOR_BGR2YCrCb)
     ref_ycrcb = cv2.cvtColor(reference_img, cv2.COLOR_BGR2YCrCb)
     
     s_y, s_cr, s_cb = cv2.split(source_ycrcb)
     r_y, r_cr, r_cb = cv2.split(ref_ycrcb)
-    
-    # Y channel: Apply histogram matching with smoothing for better results
     matched_y, lut_y = histogram_match(s_y, r_y)
+    final_cr, lut_cr = histogram_match(s_cr, r_cr)
+    final_cb, lut_cb = histogram_match(s_cb, r_cb)
     
-    # Smooth the Y curve slightly to reduce noise
-    lut_y_smooth = cv2.GaussianBlur(lut_y.astype(np.float32).reshape(-1, 1), (5, 1), 1.0)
-    lut_y_smooth = np.clip(lut_y_smooth.flatten(), 0, 255).astype(np.uint8)
-    matched_y = cv2.LUT(s_y, lut_y_smooth)
-    
-    # Cr/Cb channels: Adaptive blending based on image statistics
-    matched_cr, lut_cr = histogram_match(s_cr, r_cr)
-    matched_cb, lut_cb = histogram_match(s_cb, r_cb)
-    
-    # Calculate optimal alpha for chrominance channels
-    # Higher alpha when color difference is significant
-    cr_diff = np.abs(np.mean(r_cr.astype(np.float32)) - np.mean(s_cr.astype(np.float32)))
-    cb_diff = np.abs(np.mean(r_cb.astype(np.float32)) - np.mean(s_cb.astype(np.float32)))
-    color_diff = (cr_diff + cb_diff) / 2.0
-    
-    # Adaptive alpha: more aggressive matching when color difference is large
-    alpha = np.clip(0.5 + color_diff / 50.0, 0.5, 0.85)
-    
-    final_cr = cv2.addWeighted(s_cr, 1-alpha, matched_cr, alpha, 0)
-    final_cb = cv2.addWeighted(s_cb, 1-alpha, matched_cb, alpha, 0)
-    
-    # Additional refinement: match variance
-    ref_y_std = np.std(r_y)
-    result_y_std = np.std(matched_y)
-    
-    if result_y_std > 0:
-        scale = ref_y_std / result_y_std
-        scale = np.clip(scale, 0.9, 1.1)  # Limit scaling to avoid over-adjustment
-        
-        y_mean = np.mean(matched_y)
-        matched_y_adjusted = (matched_y.astype(np.float32) - y_mean) * scale + y_mean
-        matched_y = np.clip(matched_y_adjusted, 0, 255).astype(np.uint8)
+    alpha = 1.0
     
     result_ycrcb = cv2.merge([matched_y, final_cr, final_cb])
     result_img = cv2.cvtColor(result_ycrcb, cv2.COLOR_YCrCb2BGR)
     
-    # Return result and LUTs for curve visualization
     curves = {
-        'lut_y': lut_y_smooth,
+        'lut_y': lut_y,    
         'lut_cr': lut_cr,
         'lut_cb': lut_cb,
-        'alpha': alpha
+        'alpha': alpha    # alpha = 1.0
     }
     
     return result_img, curves
