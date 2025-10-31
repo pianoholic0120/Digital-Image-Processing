@@ -3,7 +3,60 @@ import numpy as np
 import cv2
 import argparse
 
-# Show the Fourier spectrum of the test image “keyboard.”
+def filter2d_correlation(img, kernel, anchor=(0, 0), border_type='replicate'):
+    img = img.astype(np.float32)
+    kernel = kernel.astype(np.float32)
+    
+    h, w = img.shape
+    kh, kw = kernel.shape
+    ay, ax = anchor
+    
+    # Calculate padding needed to handle boundaries
+    # For anchor=(ay, ax), when processing pixel (y, x), we access image region:
+    # from (y - ay, x - ax) to (y - ay + kh - 1, x - ax + kw - 1)
+    # We need padding when these coordinates go negative or exceed image bounds
+    pad_top = max(0, ay)
+    pad_bottom = max(0, kh - 1 - ay)
+    pad_left = max(0, ax)
+    pad_right = max(0, kw - 1 - ax)
+    
+    if border_type == 'replicate':
+        img_padded = np.pad(img, ((pad_top, pad_bottom), (pad_left, pad_right)), mode='edge')
+    else:  # constant
+        img_padded = np.pad(img, ((pad_top, pad_bottom), (pad_left, pad_right)), mode='constant', constant_values=0)
+    
+    # Initialize output
+    output = np.zeros_like(img, dtype=np.float32)
+    
+    # Perform correlation: R(y,x) = sum(kernel(i,j) * I(y-ay+i, x-ax+j))
+    # For anchor at (ay, ax), kernel position (i, j) accesses image at (y-ay+i, x-ax+j)
+    for y in range(h):
+        for x in range(w):
+            # Calculate image region: (y-ay, x-ax) to (y-ay+kh-1, x-ax+kw-1)
+            # After padding, these become (y-ay+pad_top, x-ax+pad_left) etc.
+            img_y_start = y - ay + pad_top
+            img_y_end = img_y_start + kh
+            img_x_start = x - ax + pad_left
+            img_x_end = img_x_start + kw
+            
+            # Extract image patch (should always be exactly kh x kw)
+            img_patch = img_padded[img_y_start:img_y_end, img_x_start:img_x_end]
+            
+            # Ensure patch size matches kernel (safety check)
+            if img_patch.shape != kernel.shape:
+                # This should not happen, but handle it gracefully
+                min_h = min(img_patch.shape[0], kernel.shape[0])
+                min_w = min(img_patch.shape[1], kernel.shape[1])
+                img_patch = img_patch[:min_h, :min_w]
+                k_patch = kernel[:min_h, :min_w]
+                output[y, x] = np.sum(img_patch * k_patch)
+            else:
+                # Correlation: sum of element-wise multiplication
+                output[y, x] = np.sum(img_patch * kernel)
+    
+    return output
+
+# Show the Fourier spectrum of the test image "keyboard."
 def sub_one(image_path, output_dir):
     img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
     if img is None:
@@ -115,8 +168,8 @@ def sub_four(image, output_path):
     h4[1:, 1:] = h3
 
     # Use anchor (0,0) so spatial filtering aligns with the frequency-domain top-left placement
-    # cv2.filter2D performs CORRELATION
-    resp = cv2.filter2D(img_f, ddepth=-1, kernel=h4, anchor=(0, 0), borderType=cv2.BORDER_REPLICATE)
+    # Manual correlation implementation (equivalent to cv2.filter2D with CORRELATION)
+    resp = filter2d_correlation(img_f, h4, anchor=(0, 0), border_type='replicate')
 
     # Normalize for visualization
     resp = resp - resp.min()
