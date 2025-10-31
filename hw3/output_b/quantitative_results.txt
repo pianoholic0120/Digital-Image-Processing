@@ -1,0 +1,46 @@
+QUANTITATIVE ANALYSIS RESULTS
+================================================================================
+
+PART A RESULTS
+--------------------------------------------------------------------------------
+Frequency vs Spatial (a3 vs a4):
+  MSE: 1.092735
+  Identical pixels: 98.77%
+
+ABLATION STUDY RESULTS
+--------------------------------------------------------------------------------
+Original:
+  Std Dev: 62.22
+  Edge Strength: 5.01
+  Entropy: 5.31
+
+Notch Only:
+  Std Dev: 56.77
+  Edge Strength: 4.59
+  Entropy: 7.57
+
+Notch + Unsharp:
+  Std Dev: 57.70
+  Edge Strength: 8.54
+  Entropy: 7.67
+
+Notch + Unsharp + CLAHE:
+  Std Dev: 54.31
+  Edge Strength: 20.25
+  Entropy: 7.75
+
++ Retinex:
+  Std Dev: 38.33
+  Edge Strength: 17.96
+  Entropy: 7.06
+
++ Hist Eq:
+  Std Dev: 74.49
+  Edge Strength: 41.74
+  Entropy: 6.81
+
+Full Pipeline:
+  Std Dev: 70.72
+  Edge Strength: 43.27
+  Entropy: 7.97
+
