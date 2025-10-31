@@ -8,33 +8,39 @@
 
 ---
 
-## 📚 Repository Overview
+## Repository Overview
 
 This repository contains comprehensive implementations, analyses, and reports for Digital Image Processing coursework. Each homework demonstrates advanced understanding of fundamental image processing techniques through rigorous implementation, experimentation, and evaluation.
 
-## 📂 Project Structure
+## Project Structure
 
 ```
 DIP/
-├── hw1/                          # CFA Demosaicing Methods
-│   ├── [Implementation files]
-│   └── README.md
-├── hw1_r14942096/               # Submitted version
+├── hw1_r14942096/          # CFA Demosaicing Methods (Submitted Version)
+│   ├── p1.py, p2.py, p3.py
+│   ├── images/
 │   ├── report.pdf
-│   └── [Complete deliverables]
-├── hw2/                          # Auto White Balance & Tone Mapping
-│   ├── AWB/                     # AWB implementations
-│   ├── Tone_Mapping/            # Tone mapping implementation
-│   ├── output/                  # Experimental results
-│   ├── report.md                # Comprehensive report
 │   └── README.md
-├── Reading/                      # Course readings and papers
-└── README.md                    # This file
+├── hw2/                     # Auto White Balance & Tone Mapping
+│   ├── AWB/                 # AWB implementations
+│   ├── Tone_Mapping/        # Tone mapping implementation
+│   ├── output/              # Experimental results
+│   ├── report.md            # Comprehensive report
+│   └── README.md
+├── hw3/                     # Frequency Domain Filtering & Image Enhancement
+│   ├── hw3_a.py            # Frequency domain filtering
+│   ├── hw3_b.py            # Image enhancement pipeline
+│   ├── output_a/, output_b/
+│   ├── REPORT.md           # Technical report
+│   └── README.md
+├── Reading/                 # Course readings and papers
+│   └── [Research papers and materials]
+└── README.md               # This file
 ```
 
 ---
 
-## 🎓 Homework Assignments
+## Homework Assignments
 
 ### Homework 1: CFA Demosaicing Methods Comparison
 
@@ -52,7 +58,7 @@ DIP/
 
 **Technologies**: Python, OpenCV, NumPy, Matplotlib
 
-📁 **Details**: See [hw1/README.md](hw1/README.md)
+**Details**: See [hw1_r14942096/README.md](hw1_r14942096/README.md)
 
 ---
 
@@ -82,17 +88,48 @@ DIP/
 
 **Technologies**: Python, OpenCV, NumPy, Color Space Transformations
 
-📁 **Details**: See [hw2/README.md](hw2/README.md)
+**Details**: See [hw2/README.md](hw2/README.md)
 
 ---
 
-## 🔬 Research Topics & Methods
+### Homework 3: Frequency Domain Filtering and Image Enhancement
+
+**Topic**: Frequency-Spatial Domain Equivalence and Multi-Stage Image Enhancement
+
+**Part A - Frequency Domain Filtering**:
+- 2D Discrete Fourier Transform visualization
+- Odd symmetry kernel design (4×4 padded Sobel kernel)
+- Frequency-spatial domain equivalence verification
+- Correlation implementation using complex conjugate
+
+**Part B - Image Enhancement Pipeline**:
+- Notch filtering for periodic noise removal
+- Unsharp masking for detail enhancement
+- Histogram equalization and CLAHE
+- Single-scale Retinex for illumination correction
+- Comprehensive ablation study
+
+**Key Results**:
+- Frequency-spatial equivalence: **98.77%** pixel match, **47.75 dB** PSNR
+- Odd symmetry violation increases MSE by **455×**
+- Enhancement pipeline achieves **764%** edge strength increase
+- All operations manually implemented (except image I/O)
+
+**Technologies**: Python, NumPy, OpenCV (I/O only)
+
+**Details**: See [hw3/README.md](hw3/README.md)
+
+---
+
+## Research Topics & Methods
 
 ### Image Enhancement
 - Demosaicing algorithms
 - White balance correction
 - Tone mapping and tone reproduction
 - Histogram matching
+- Frequency domain filtering
+- Multi-stage enhancement pipelines
 
 ### Color Science
 - Color constancy and illuminant estimation
@@ -100,28 +137,37 @@ DIP/
 - Color space conversions (RGB, YCrCb)
 - Ground-truth illuminant evaluation
 
+### Frequency Domain Processing
+- 2D Discrete Fourier Transform
+- Odd symmetry requirements for kernels
+- Frequency-spatial domain equivalence
+- Notch filtering for periodic noise
+- Correlation vs. convolution
+
 ### Evaluation Metrics
 - **PSNR** (Peak Signal-to-Noise Ratio)
 - **MSE** (Mean Squared Error)
 - **Angular Error** (Illuminant estimation accuracy)
 - Statistical analysis (mean, std dev, per-image performance)
+- Edge strength and contrast metrics
 
 ### Algorithm Design
 - Edge-aware processing
 - Multi-scale approaches
 - Adaptive parameter selection
 - Statistical estimators (mean, max, p-norms)
+- Manual algorithm implementation
 
 ---
 
-## 🛠️ Technical Stack
+## Technical Stack
 
 ### Programming Languages
 - **Python 3.8+**: Primary implementation language
 
 ### Core Libraries
 - **OpenCV** (cv2): Image I/O, processing, color space conversion
-- **NumPy**: Numerical computations, array operations
+- **NumPy**: Numerical computations, array operations, FFT
 - **Matplotlib**: Visualization and plotting
 - **Pandas**: Data analysis and statistics
 
@@ -132,7 +178,7 @@ DIP/
 
 ---
 
-## 📊 Performance Highlights
+## Performance Highlights
 
 ### HW1: Demosaicing
 ```
@@ -152,22 +198,34 @@ Grey World Opt3     3.97°      193.6       Best Balance
 White Patch Opt1    5.98°      211.2       Moderate
 ```
 
+### HW3: Frequency Domain & Enhancement
+```
+Metric                          Result
+─────────────────────────────────────────────────
+Frequency-Spatial Match         98.77% pixels
+Frequency-Spatial PSNR          47.75 dB
+Odd Symmetry Violation Impact   455× MSE increase
+Edge Strength Improvement       764% increase
+```
+
 ---
 
-## 🎯 Key Learning Outcomes
+## Key Learning Outcomes
 
 ### Technical Skills
 1. **Algorithm Implementation**: From research papers to working code
-2. **Image Processing**: Demosaicing, AWB, tone mapping
+2. **Image Processing**: Demosaicing, AWB, tone mapping, frequency domain filtering
 3. **Color Science**: Color spaces, chromatic adaptation, color constancy
 4. **Evaluation Methodology**: Quantitative metrics, statistical analysis
 5. **Optimization**: Performance tuning, parameter selection
+6. **Manual Implementation**: Custom algorithms without library dependencies
 
 ### Analytical Skills
 1. **Critical Analysis**: Understanding algorithm assumptions and limitations
 2. **Comparative Evaluation**: Multi-method performance comparison
 3. **Visual Inspection**: Qualitative assessment complementing quantitative metrics
 4. **Research Synthesis**: Connecting theory with experimental results
+5. **Ablation Studies**: Systematic component contribution analysis
 
 ### Software Engineering
 1. **Modular Design**: Reusable functions and utilities
@@ -177,19 +235,19 @@ White Patch Opt1    5.98°      211.2       Moderate
 
 ---
 
-## 📖 Documentation Standards
+## Documentation Standards
 
 Each homework includes:
-- ✅ **Comprehensive README**: Quick start, usage, results
-- ✅ **Technical Report**: Methodology, implementation, analysis
-- ✅ **Source Code**: Well-documented Python implementations
-- ✅ **Evaluation Scripts**: Automated testing and metrics
-- ✅ **Visual Results**: Output images and visualizations
-- ✅ **Performance Data**: Quantitative results in CSV/TXT format
+- **Comprehensive README**: Quick start, usage, results
+- **Technical Report**: Methodology, implementation, analysis
+- **Source Code**: Well-documented Python implementations
+- **Evaluation Scripts**: Automated testing and metrics
+- **Visual Results**: Output images and visualizations
+- **Performance Data**: Quantitative results in CSV/TXT format
 
 ---
 
-## 🚀 Quick Start (Any Homework)
+## Quick Start
 
 ### Prerequisites
 
@@ -205,7 +263,7 @@ pip3 install opencv-python numpy matplotlib pandas
 
 ```bash
 # Navigate to specific homework
-cd hw1    # or hw2
+cd hw1_r14942096    # or hw2, hw3
 
 # Read the README
 cat README.md
@@ -216,25 +274,27 @@ cat README.md
 
 ---
 
-## 📈 Repository Statistics
+## Repository Statistics
 
 ### Code Metrics (Approximate)
-- **Total Lines of Code**: ~2,000+ lines
-- **Python Files**: 20+ implementations
+- **Total Lines of Code**: ~3,000+ lines
+- **Python Files**: 30+ implementations
 - **Test Images**: 10+ (5 per homework)
-- **Output Results**: 100+ images and data files
-- **Documentation**: 3,000+ lines
+- **Output Results**: 150+ images and data files
+- **Documentation**: 4,000+ lines
 
 ### Implementation Coverage
-- ✅ 3 Demosaicing algorithms (HW1)
-- ✅ 6 AWB algorithm variants (HW2)
-- ✅ 1 Tone mapping algorithm (HW2)
-- ✅ Multiple evaluation utilities
-- ✅ Comprehensive analysis scripts
+- 3 Demosaicing algorithms (HW1)
+- 6 AWB algorithm variants (HW2)
+- 1 Tone mapping algorithm (HW2)
+- Frequency domain filtering pipeline (HW3)
+- Multi-stage image enhancement pipeline (HW3)
+- Multiple evaluation utilities
+- Comprehensive analysis scripts
 
 ---
 
-## 🔍 Research Insights
+## Research Insights
 
 ### HW1 Insights
 1. **Stochastic methods** significantly outperform simple interpolation
@@ -247,97 +307,44 @@ cat README.md
 3. **Scene characteristics** significantly impact algorithm performance
 4. **Statistical assumptions** determine method suitability
 
+### HW3 Insights
+1. **Odd symmetry** is essential for frequency-spatial domain equivalence
+2. **Multi-stage pipelines** enable cumulative improvements
+3. **Manual implementation** provides deep understanding of algorithms
+4. **Ablation studies** reveal individual component contributions
+
 ### Cross-Homework Observations
 1. **Simple methods** often provide baseline performance
 2. **Advanced methods** require parameter tuning but offer substantial improvements
 3. **Evaluation metrics** must align with application goals
 4. **Visual inspection** complements quantitative analysis
+5. **Theoretical understanding** enables effective algorithm design
 
 ---
 
-## 📚 Reading Materials
+## Reading Materials
 
 The `Reading/` directory contains relevant research papers and course materials covering:
 - Color filter array demosaicing techniques
 - Color constancy and white balance algorithms
 - Tone mapping and HDR imaging
 - Image quality assessment metrics
+- Frequency domain filtering methods
 
 ---
 
-## 🎨 Visual Results Gallery
-
-### HW1: Demosaicing Results
-- Original Bayer patterns
-- P1 simple interpolation outputs
-- P2 edge-aware results (6 threshold variants)
-- P3 stochastic interpolation outputs
-- Comparative analysis visualizations
-
-### HW2: AWB & Tone Mapping Results
-- 30 white-balanced images (6 methods × 5 images)
-- 30 tone-mapped outputs
-- 30 tone curve visualizations
-- Method comparison figures
-- Complete pipeline demonstrations
-
----
-
-## 💡 Best Practices Demonstrated
-
-### Code Quality
-- Modular function design
-- Comprehensive error handling
-- Command-line interfaces with argparse
-- Batch processing automation
-- Clear code documentation
-
-### Experimental Methodology
-- Ground-truth comparison
-- Multiple evaluation metrics
-- Statistical significance analysis
-- Per-image and aggregate results
-- Visual validation
-
-### Documentation
-- Academic-quality reports
-- Clear usage instructions
-- Performance summaries
-- Troubleshooting guides
-- Code availability
-
----
-
-## 🔧 Utilities and Tools
-
-### Evaluation Scripts
-- `psnr_check.py` (HW1): PSNR calculation for demosaicing
-- `evaluate_AWB.py` (HW2): Angular error for AWB
-- `p1.py` (Tone_Mapping): MSE/PSNR for tone mapping
-
-### Batch Processing
-- Shell scripts for automated processing
-- Support for multiple input images
-- Organized output directory structure
-
-### Analysis Tools
-- Performance comparison scripts
-- Statistical analysis utilities
-- Visualization generators
-
----
-
-## 📊 Comparative Analysis
+## Comparative Analysis
 
 ### Algorithm Families
 
-| Family | HW1 Application | HW2 Application | Key Principle |
-|--------|----------------|-----------------|---------------|
-| Statistical | Mean-based interpolation | Grey World, Shades of Gray | Average properties |
-| Edge-based | P2 adaptive | - | Gradient analysis |
-| Optimization | P3 stochastic | - | Weighted combination |
-| Transform | - | Von Kries adaptation | Diagonal mapping |
-| Histogram | - | Tone mapping | CDF matching |
+| Family | HW1 Application | HW2 Application | HW3 Application | Key Principle |
+|--------|----------------|-----------------|-----------------|---------------|
+| Statistical | Mean-based interpolation | Grey World, Shades of Gray | - | Average properties |
+| Edge-based | P2 adaptive | - | Sobel filtering | Gradient analysis |
+| Optimization | P3 stochastic | - | - | Weighted combination |
+| Transform | - | Von Kries adaptation | DFT/FFT | Diagonal/spectral mapping |
+| Histogram | - | Tone mapping | Histogram equalization | CDF matching |
+| Frequency | - | - | Notch filtering | Spectral filtering |
 
 ### Performance Patterns
 
@@ -347,36 +354,40 @@ The `Reading/` directory contains relevant research papers and course materials 
 3. Multi-scale/adaptive approaches improve robustness
 4. Scene characteristics strongly influence results
 5. No single method optimal for all cases
+6. Theoretical foundations enable reliable implementations
 
 ---
 
-## 🎓 Learning Journey
+## Learning Journey
 
 ### Progression
 
-**HW1 → HW2**:
-- From **spatial interpolation** to **color correction**
-- From **single metric (PSNR)** to **dual metrics (Angular Error + MSE/PSNR)**
-- From **3 methods** to **6+ variants**
-- From **single-stage** to **multi-stage pipeline**
+**HW1 → HW2 → HW3**:
+- From **spatial interpolation** to **color correction** to **frequency domain**
+- From **single metric (PSNR)** to **dual metrics** to **comprehensive analysis**
+- From **3 methods** to **6+ variants** to **multi-stage pipelines**
+- From **single-stage** to **multi-stage pipeline** to **ablation studies**
 
 ### Skills Developed
 1. Image processing algorithm implementation
 2. Color science and chromatic adaptation
-3. Statistical analysis and evaluation
-4. Technical writing and reporting
-5. Software engineering practices
+3. Frequency domain processing and FFT
+4. Statistical analysis and evaluation
+5. Technical writing and reporting
+6. Software engineering practices
+7. Manual algorithm implementation
 
 ---
 
-## 🔮 Future Work
+## Future Work
 
 ### Potential Extensions
-1. **Deep Learning Integration**: CNN-based demosaicing and AWB
+1. **Deep Learning Integration**: CNN-based demosaicing, AWB, and enhancement
 2. **Real-Time Processing**: GPU acceleration, optimization
 3. **Advanced Metrics**: Perceptual quality (SSIM, LPIPS)
 4. **Interactive Tools**: GUI for parameter tuning
 5. **Larger Datasets**: Comprehensive evaluation on diverse images
+6. **Multi-Scale Retinex**: Improved illumination correction
 
 ### Research Directions
 1. Joint optimization of multi-stage pipelines
@@ -384,52 +395,58 @@ The `Reading/` directory contains relevant research papers and course materials 
 3. Physics-based color constancy
 4. HDR imaging and advanced tone mapping
 5. Mobile deployment and edge computing
+6. Advanced frequency domain techniques
 
 ---
 
-## 📞 Support & Feedback
+## Support & Feedback
 
 For questions or suggestions regarding this coursework:
 - Check individual homework README files
-- Review comprehensive reports (report.md)
-- Consult analysis documents (COMPREHENSIVE_ANALYSIS.md)
+- Review comprehensive reports (report.md, REPORT.md)
+- Consult analysis documents and output results
 
 ---
 
-## 📝 Version History
+## Version History
 
+- **v3.0** (Nov 2025): HW3 - Frequency Domain Filtering and Image Enhancement
 - **v2.0** (Oct 2025): HW2 - Auto White Balance and Tone Mapping
 - **v1.0** (Sep 2025): HW1 - CFA Demosaicing Methods
 
 ---
 
-## 🏆 Highlights
+## Highlights
 
 ### Technical Achievements
-- ✅ 10+ algorithm implementations
-- ✅ 6+ evaluation scripts
-- ✅ 130+ output images and visualizations
-- ✅ Comprehensive documentation (3,000+ lines)
-- ✅ Reproducible experimental pipelines
+- 10+ algorithm implementations
+- 8+ evaluation scripts
+- 150+ output images and visualizations
+- Comprehensive documentation (4,000+ lines)
+- Reproducible experimental pipelines
+- Manual implementation of complex algorithms
 
 ### Research Contributions
-- ✅ Multi-scale AWB approach validation
-- ✅ AWB-tone mapping independence discovery
-- ✅ Scene-dependent performance analysis
-- ✅ Practical algorithm selection guidelines
+- Multi-scale AWB approach validation
+- AWB-tone mapping independence discovery
+- Scene-dependent performance analysis
+- Frequency-spatial domain equivalence verification
+- Multi-stage enhancement pipeline design
+- Practical algorithm selection guidelines
 
 ### Academic Quality
-- ✅ Rigorous experimental methodology
-- ✅ Proper citation of research papers
-- ✅ Statistical significance testing
-- ✅ Visual and quantitative validation
-- ✅ Critical analysis and discussion
+- Rigorous experimental methodology
+- Proper citation of research papers
+- Statistical significance testing
+- Visual and quantitative validation
+- Critical analysis and discussion
+- Comprehensive ablation studies
 
 ---
 
-**This repository represents a comprehensive study of fundamental digital image processing techniques, from low-level sensor data reconstruction to high-level color correction and tone reproduction.**
+**This repository represents a comprehensive study of fundamental digital image processing techniques, from low-level sensor data reconstruction to high-level color correction, tone reproduction, and frequency domain processing.**
 
 ---
 
-*Last Updated: October 19, 2025*  
+*Last Updated: November 2025*  
 *Course: Digital Image Processing, National Taiwan University*

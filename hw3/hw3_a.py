@@ -106,6 +106,25 @@ def sub_two(image_path, output_dir):
     cv2.imwrite(os.path.join(output_dir, 'a2.png'), vis)
     print("Subproblem 2: Padded 4x4 kernel saved to output/2.png")
 
+    # # Visualize kernel as image for saving (high resolution to avoid interpolation artifacts in PDF)
+    # vis = h4.copy()
+    # vis_min, vis_max = vis.min(), vis.max()
+    # if vis_max - vis_min > 1e-8:
+    #     vis = (vis - vis_min) / (vis_max - vis_min)
+    # else:
+    #     vis = np.zeros_like(vis)
+    # vis = (vis * 255).astype(np.uint8)
+    
+    # # Create high-resolution version: each kernel element is 100x100 pixels
+    # scale = 100
+    # h_highres = np.zeros((h4.shape[0] * scale, h4.shape[1] * scale), dtype=np.uint8)
+    # for i in range(h4.shape[0]):
+    #     for j in range(h4.shape[1]):
+    #         h_highres[i*scale:(i+1)*scale, j*scale:(j+1)*scale] = vis[i, j]
+    
+    # cv2.imwrite(os.path.join(output_dir, 'a2.png'), h_highres)
+    # print("Subproblem 2: Padded 4x4 kernel saved to output/2_for_report.png (high resolution)")
+
 # Show the result of frequency domain filtering of the test image using the vertical Sober kernel.
 def sub_three(image, output_path):
     # Frequency-domain filtering with vertical Sobel, enforcing odd symmetry (4x4 with leading zeros)
