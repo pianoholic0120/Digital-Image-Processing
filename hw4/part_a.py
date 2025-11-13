@@ -59,7 +59,7 @@ def generate_parallel_sinogram(image, thetas):
         
     return sinogram, s_bins
 
-def filter_sinogram(sinogram):
+def filter_sinogram(sinogram, use_hamming):
     # print("  Filtering sinogram...")
     num_bins, num_thetas = sinogram.shape
     
@@ -70,7 +70,10 @@ def filter_sinogram(sinogram):
     
     filter_ramp = np.abs(omega_shifted)
     
-    filter_hamming = np.hamming(num_bins)
+    if use_hamming:
+        filter_hamming = np.hamming(num_bins)
+    else:
+        filter_hamming = np.ones(num_bins)
     
     filter_combined = filter_ramp * filter_hamming
     
@@ -118,7 +121,7 @@ def backproject(filtered_sinogram, thetas, s_bins, output_shape=(600, 600)):
     
     return reconstructed_image
 
-def filtered_backprojection(input_image, output_path):
+def filtered_backprojection(input_image, output_path, use_hamming):
     os.makedirs(output_path, exist_ok=True)
     
     input_8bit = (np.clip(input_image, 0, 1) * 255).astype(np.uint8)
@@ -134,7 +137,7 @@ def filtered_backprojection(input_image, output_path):
         thetas = np.arange(0, 180, delta_angle)
         
         sinogram, s_bins = generate_parallel_sinogram(input_image, thetas)
-        filtered_sinogram = filter_sinogram(sinogram)
+        filtered_sinogram = filter_sinogram(sinogram, use_hamming)
         reconstructed_image = backproject(filtered_sinogram, thetas, s_bins, input_image.shape)
         
         rec_min = np.min(reconstructed_image)
@@ -232,8 +235,25 @@ def filtered_backprojection(input_image, output_path):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output_path", type=str, default="./output_part_a")
+    parser.add_argument("--use_hamming", type=str, nargs='?', const="true", default="true",
+                       choices=["true", "false", "True", "False"],
+                       help="Whether to use Hamming window in filtering (default: true). "
+                            "Use --use_hamming or --use_hamming true to enable, "
+                            "--use_hamming false to disable.")
     args = parser.parse_args()
+    
+    # Convert string to boolean
+    use_hamming = args.use_hamming.lower() == "true"
+    
+    # Set output path based on hamming usage
+    if use_hamming:
+        output_path = "./output_part_a"
+    else:
+        output_path = "./output_part_a_no_hamming"
+    
+    print(f"Using Hamming window: {use_hamming}")
+    print(f"Output path: {output_path}")
+    
     input_image = generate_input_image()
-    filtered_backprojection(input_image, args.output_path)
+    filtered_backprojection(input_image, output_path, use_hamming)
     print("\n--- Finished ---")
