@@ -43,8 +43,8 @@ def generate_parallel_sinogram(image, thetas):
     bin_edges = np.linspace(-num_bins // 2 - 0.5, num_bins // 2 + 0.5, num_bins + 1)
     
     for i, theta_deg in enumerate(thetas):
-        if (i+1) % (max(1, len(thetas) // 10)) == 0 or i == len(thetas) - 1:
-            print(f"    ... projection {i+1}/{len(thetas)} ({theta_deg:.2f} deg)")
+        # if (i+1) % (max(1, len(thetas) // 10)) == 0 or i == len(thetas) - 1:
+            # print(f"    ... projection {i+1}/{len(thetas)} ({theta_deg:.2f} deg)")
             
         theta_rad = np.deg2rad(theta_deg)
         # s = x * cos(theta) + y * sin(theta)
@@ -60,7 +60,7 @@ def generate_parallel_sinogram(image, thetas):
     return sinogram, s_bins
 
 def filter_sinogram(sinogram):
-    print("  Filtering sinogram...")
+    # print("  Filtering sinogram...")
     num_bins, num_thetas = sinogram.shape
     
     projections_fft = np.fft.fft(sinogram, axis=0)
@@ -83,7 +83,7 @@ def filter_sinogram(sinogram):
     return filtered_sinogram.real
 
 def backproject(filtered_sinogram, thetas, s_bins, output_shape=(600, 600)):
-    print("  Back-projecting...")
+    # print("  Back-projecting...")
     num_bins, num_thetas = filtered_sinogram.shape
     reconstructed_image = np.zeros(output_shape, dtype=np.float32)
     
@@ -96,8 +96,8 @@ def backproject(filtered_sinogram, thetas, s_bins, output_shape=(600, 600)):
     y_coords_centered = center_y - y_coords
     
     for i, theta_deg in enumerate(thetas):
-        if (i+1) % (max(1, len(thetas) // 10)) == 0 or i == len(thetas) - 1:
-            print(f"    ... back-projecting {i+1}/{len(thetas)} ({theta_deg:.2f} deg)")
+        # if (i+1) % (max(1, len(thetas) // 10)) == 0 or i == len(thetas) - 1:
+            # print(f"    ... back-projecting {i+1}/{len(thetas)} ({theta_deg:.2f} deg)")
             
         theta_rad = np.deg2rad(theta_deg)
         
@@ -125,16 +125,16 @@ def filtered_backprojection(input_image, output_path):
     cv2.imwrite(os.path.join(output_path, "input_image_600x600.png"), input_8bit)
 
     angle_increments = [1.0, 0.5, 0.25, 0.125]
-
+    
+    # Step 1: Generate all reconstructions
+    reconstructed_images = {}
     for delta_angle in angle_increments:
         print(f"\n--- Processing: angle increment = {delta_angle}° ---")
         
         thetas = np.arange(0, 180, delta_angle)
         
         sinogram, s_bins = generate_parallel_sinogram(input_image, thetas)
-        
         filtered_sinogram = filter_sinogram(sinogram)
-        
         reconstructed_image = backproject(filtered_sinogram, thetas, s_bins, input_image.shape)
         
         rec_min = np.min(reconstructed_image)
@@ -149,7 +149,86 @@ def filtered_backprojection(input_image, output_path):
         filename = f"reconstruction_{delta_angle}deg.png"
         filepath = os.path.join(output_path, filename)
         cv2.imwrite(filepath, reconstructed_8bit)
-        print(f"  Saved image to: {filepath}")
+        print(f"  Saved reconstruction to: {filepath}")
+        
+        # Store normalized reconstruction for sinogram generation
+        reconstructed_images[delta_angle] = reconstructed_normalized
+    
+    # Step 2: Generate sinograms from original and reconstructed images with consistent dimensions
+    print(f"\n--- Generating sinograms from original and reconstructed images ---")
+    
+    # Calculate fixed dimensions for all sinograms
+    # Use the finest angle increment for consistent height
+    finest_angle = min(angle_increments)
+    target_num_angles = int(180 / finest_angle)  # Maximum number of angles
+    
+    # Calculate fixed num_bins based on input image size
+    diag = np.ceil(np.sqrt(input_image.shape[0]**2 + input_image.shape[1]**2))
+    target_num_bins = int(diag)
+    if target_num_bins % 2 == 0:
+        target_num_bins += 1
+    
+    print(f"  Target sinogram dimensions: width={target_num_bins} (ρ), height={target_num_angles} (θ)")
+    
+    # Use the finest angle increment for all sinograms to ensure consistent height
+    thetas = np.arange(0, 180, finest_angle)
+    
+    # Generate sinogram from original input image
+    print(f"\n  Generating sinogram for original input image...")
+    sinogram_original, s_bins = generate_parallel_sinogram(input_image, thetas)
+    
+    # Normalize original sinogram
+    sino_min = np.min(sinogram_original)
+    sino_max = np.max(sinogram_original)
+    if sino_max > sino_min:
+        sinogram_normalized = (sinogram_original - sino_min) / (sino_max - sino_min)
+    else:
+        sinogram_normalized = np.zeros_like(sinogram_original)
+    
+    sinogram_8bit = (sinogram_normalized * 255).astype(np.uint8)
+    
+    # Transpose: (num_bins, num_thetas) -> (num_thetas, num_bins)
+    # This makes rows = angles (θ), columns = distances (ρ)
+    sinogram_display = sinogram_8bit.T
+    
+    # Verify dimensions match target
+    assert sinogram_display.shape[1] == target_num_bins, f"Width mismatch: {sinogram_display.shape[1]} != {target_num_bins}"
+    assert sinogram_display.shape[0] == target_num_angles, f"Height mismatch: {sinogram_display.shape[0]} != {target_num_angles}"
+    
+    sino_filename = "sinogram_original.png"
+    sino_filepath = os.path.join(output_path, sino_filename)
+    cv2.imwrite(sino_filepath, sinogram_display)
+    print(f"  Saved sinogram to: {sino_filepath} (shape: {sinogram_display.shape})")
+    
+    # Generate sinograms from reconstructed images
+    for delta_angle in angle_increments:
+        print(f"\n  Generating sinogram for reconstruction_{delta_angle}deg...")
+        
+        # Generate sinogram from reconstructed image
+        sinogram, s_bins = generate_parallel_sinogram(reconstructed_images[delta_angle], thetas)
+        
+        # Normalize sinogram
+        sino_min = np.min(sinogram)
+        sino_max = np.max(sinogram)
+        if sino_max > sino_min:
+            sinogram_normalized = (sinogram - sino_min) / (sino_max - sino_min)
+        else:
+            sinogram_normalized = np.zeros_like(sinogram)
+        
+        sinogram_8bit = (sinogram_normalized * 255).astype(np.uint8)
+        
+        # Transpose: (num_bins, num_thetas) -> (num_thetas, num_bins)
+        # This makes rows = angles (θ), columns = distances (ρ)
+        sinogram_display = sinogram_8bit.T
+        
+        # Verify dimensions match target
+        assert sinogram_display.shape[1] == target_num_bins, f"Width mismatch: {sinogram_display.shape[1]} != {target_num_bins}"
+        assert sinogram_display.shape[0] == target_num_angles, f"Height mismatch: {sinogram_display.shape[0]} != {target_num_angles}"
+        
+        sino_filename = f"sinogram_{delta_angle}deg.png"
+        sino_filepath = os.path.join(output_path, sino_filename)
+        cv2.imwrite(sino_filepath, sinogram_display)
+        print(f"  Saved sinogram to: {sino_filepath} (shape: {sinogram_display.shape})")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
