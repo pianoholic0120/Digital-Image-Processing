@@ -33,6 +33,12 @@ DIP/
 │   ├── output_a/, output_b/
 │   ├── REPORT.md           # Technical report
 │   └── README.md
+├── hw4/                     # Image Reconstruction & Color Appearance Model
+│   ├── part_a.py           # Filtered backprojection reconstruction
+│   ├── part_b.py           # Chromatic adaptation transforms
+│   ├── output_part_a/, output_part_b_*/
+│   ├── report.md           # Comprehensive report
+│   └── README.md
 ├── Reading/                 # Course readings and papers
 │   └── [Research papers and materials]
 └── README.md               # This file
@@ -121,6 +127,37 @@ DIP/
 
 ---
 
+### Homework 4: Image Reconstruction and Color Appearance Model
+
+**Topic**: Filtered Backprojection Reconstruction and Chromatic Adaptation Transforms
+
+**Part A - Filtered Backprojection Image Reconstruction**:
+- Radon transform and sinogram generation
+- Parallel-beam projection computation
+- Frequency-domain ramp filtering (|ω|)
+- Hamming window for noise reduction
+- Backprojection algorithm implementation
+- Angular sampling rate analysis
+
+**Part B - Chromatic Adaptation and Color Constancy**:
+- CAT02 chromatic adaptation transform (CIECAM02)
+- Bradford chromatic adaptation transform
+- Color space conversions (RGB, XYZ, LMS)
+- CIEDE2000 color difference calculation
+- Illuminant adaptation and color constancy
+
+**Key Results**:
+- Reconstruction quality: **23.15 dB** PSNR, **0.9832** SSIM with 0.125° sampling
+- Hamming window provides **4.9-8.6 dB** PSNR improvement across all sampling rates
+- CAT02 and Bradford show equivalent performance: **5.54** vs **5.55** ΔE*00
+- Angular sampling analysis demonstrates logarithmic quality improvement
+
+**Technologies**: Python, NumPy, OpenCV, Colour Science Library
+
+**Details**: See [hw4/README.md](hw4/README.md)
+
+---
+
 ## Research Topics & Methods
 
 ### Image Enhancement
@@ -133,9 +170,11 @@ DIP/
 
 ### Color Science
 - Color constancy and illuminant estimation
-- Chromatic adaptation (Von Kries transformation)
-- Color space conversions (RGB, YCrCb)
+- Chromatic adaptation (Von Kries, CAT02, Bradford transforms)
+- Color space conversions (RGB, XYZ, YCrCb, LMS)
 - Ground-truth illuminant evaluation
+- Color appearance models (CIECAM02)
+- CIEDE2000 color difference metrics
 
 ### Frequency Domain Processing
 - 2D Discrete Fourier Transform
@@ -143,11 +182,16 @@ DIP/
 - Frequency-spatial domain equivalence
 - Notch filtering for periodic noise
 - Correlation vs. convolution
+- Radon transform and sinogram generation
+- Filtered backprojection reconstruction
+- Ramp filtering and Hamming window
 
 ### Evaluation Metrics
 - **PSNR** (Peak Signal-to-Noise Ratio)
 - **MSE** (Mean Squared Error)
+- **SSIM** (Structural Similarity Index)
 - **Angular Error** (Illuminant estimation accuracy)
+- **CIEDE2000** (ΔE*00 color difference)
 - Statistical analysis (mean, std dev, per-image performance)
 - Edge strength and contrast metrics
 
@@ -170,6 +214,7 @@ DIP/
 - **NumPy**: Numerical computations, array operations, FFT
 - **Matplotlib**: Visualization and plotting
 - **Pandas**: Data analysis and statistics
+- **Colour Science**: CIEDE2000 calculation, color science utilities
 
 ### Development Tools
 - **Shell Scripts**: Batch processing automation
@@ -206,6 +251,21 @@ Frequency-Spatial Match         98.77% pixels
 Frequency-Spatial PSNR          47.75 dB
 Odd Symmetry Violation Impact   455× MSE increase
 Edge Strength Improvement       764% increase
+```
+
+### HW4: Image Reconstruction & Color Appearance
+```
+Part A - Reconstruction         Result
+─────────────────────────────────────────────────
+Best PSNR (0.125° sampling)    23.15 dB
+Best SSIM (0.125° sampling)     0.9832
+Hamming Window Improvement      4.9-8.6 dB
+─────────────────────────────────────────────────
+Part B - Chromatic Adaptation   Result
+─────────────────────────────────────────────────
+CAT02 ΔE*00                     5.54
+Bradford ΔE*00                  5.55
+Method Equivalence              Negligible difference
 ```
 
 ---
@@ -263,7 +323,7 @@ pip3 install opencv-python numpy matplotlib pandas
 
 ```bash
 # Navigate to specific homework
-cd hw1_r14942096    # or hw2, hw3
+cd hw1_r14942096    # or hw2, hw3, hw4
 
 # Read the README
 cat README.md
@@ -277,11 +337,11 @@ cat README.md
 ## Repository Statistics
 
 ### Code Metrics (Approximate)
-- **Total Lines of Code**: ~3,000+ lines
-- **Python Files**: 30+ implementations
-- **Test Images**: 10+ (5 per homework)
-- **Output Results**: 150+ images and data files
-- **Documentation**: 4,000+ lines
+- **Total Lines of Code**: ~4,000+ lines
+- **Python Files**: 35+ implementations
+- **Test Images**: 15+ across all homeworks
+- **Output Results**: 200+ images and data files
+- **Documentation**: 5,000+ lines
 
 ### Implementation Coverage
 - 3 Demosaicing algorithms (HW1)
@@ -289,6 +349,8 @@ cat README.md
 - 1 Tone mapping algorithm (HW2)
 - Frequency domain filtering pipeline (HW3)
 - Multi-stage image enhancement pipeline (HW3)
+- Filtered backprojection reconstruction (HW4)
+- 2 Chromatic adaptation transforms (HW4)
 - Multiple evaluation utilities
 - Comprehensive analysis scripts
 
@@ -313,6 +375,13 @@ cat README.md
 3. **Manual implementation** provides deep understanding of algorithms
 4. **Ablation studies** reveal individual component contributions
 
+### HW4 Insights
+1. **Angular sampling rate** critically affects reconstruction quality
+2. **Hamming window** provides substantial noise reduction in filtered backprojection
+3. **CAT02 and Bradford** demonstrate equivalent performance for chromatic adaptation
+4. **Radon transform** enables image reconstruction from projections
+5. **CIEDE2000** provides perceptually uniform color difference measurement
+
 ### Cross-Homework Observations
 1. **Simple methods** often provide baseline performance
 2. **Advanced methods** require parameter tuning but offer substantial improvements
@@ -330,6 +399,8 @@ The `Reading/` directory contains relevant research papers and course materials 
 - Tone mapping and HDR imaging
 - Image quality assessment metrics
 - Frequency domain filtering methods
+- Image reconstruction and Radon transform
+- Color appearance models and chromatic adaptation
 
 ---
 
@@ -337,14 +408,15 @@ The `Reading/` directory contains relevant research papers and course materials 
 
 ### Algorithm Families
 
-| Family | HW1 Application | HW2 Application | HW3 Application | Key Principle |
-|--------|----------------|-----------------|-----------------|---------------|
-| Statistical | Mean-based interpolation | Grey World, Shades of Gray | - | Average properties |
-| Edge-based | P2 adaptive | - | Sobel filtering | Gradient analysis |
-| Optimization | P3 stochastic | - | - | Weighted combination |
-| Transform | - | Von Kries adaptation | DFT/FFT | Diagonal/spectral mapping |
-| Histogram | - | Tone mapping | Histogram equalization | CDF matching |
-| Frequency | - | - | Notch filtering | Spectral filtering |
+| Family | HW1 Application | HW2 Application | HW3 Application | HW4 Application | Key Principle |
+|--------|----------------|-----------------|-----------------|----------------|---------------|
+| Statistical | Mean-based interpolation | Grey World, Shades of Gray | - | - | Average properties |
+| Edge-based | P2 adaptive | - | Sobel filtering | - | Gradient analysis |
+| Optimization | P3 stochastic | - | - | - | Weighted combination |
+| Transform | - | Von Kries adaptation | DFT/FFT | Radon, CAT02, Bradford | Diagonal/spectral mapping |
+| Histogram | - | Tone mapping | Histogram equalization | - | CDF matching |
+| Frequency | - | - | Notch filtering | Ramp filtering | Spectral filtering |
+| Reconstruction | - | - | - | Backprojection | Projection integration |
 
 ### Performance Patterns
 
@@ -362,20 +434,22 @@ The `Reading/` directory contains relevant research papers and course materials 
 
 ### Progression
 
-**HW1 → HW2 → HW3**:
-- From **spatial interpolation** to **color correction** to **frequency domain**
-- From **single metric (PSNR)** to **dual metrics** to **comprehensive analysis**
-- From **3 methods** to **6+ variants** to **multi-stage pipelines**
-- From **single-stage** to **multi-stage pipeline** to **ablation studies**
+**HW1 → HW2 → HW3 → HW4**:
+- From **spatial interpolation** to **color correction** to **frequency domain** to **image reconstruction**
+- From **single metric (PSNR)** to **dual metrics** to **comprehensive analysis** to **multi-metric evaluation**
+- From **3 methods** to **6+ variants** to **multi-stage pipelines** to **transform comparison**
+- From **single-stage** to **multi-stage pipeline** to **ablation studies** to **theoretical validation**
 
 ### Skills Developed
 1. Image processing algorithm implementation
 2. Color science and chromatic adaptation
 3. Frequency domain processing and FFT
-4. Statistical analysis and evaluation
-5. Technical writing and reporting
-6. Software engineering practices
-7. Manual algorithm implementation
+4. Image reconstruction from projections
+5. Statistical analysis and evaluation
+6. Technical writing and reporting
+7. Software engineering practices
+8. Manual algorithm implementation
+9. Transform theory and implementation
 
 ---
 
@@ -388,6 +462,8 @@ The `Reading/` directory contains relevant research papers and course materials 
 4. **Interactive Tools**: GUI for parameter tuning
 5. **Larger Datasets**: Comprehensive evaluation on diverse images
 6. **Multi-Scale Retinex**: Improved illumination correction
+7. **3D Reconstruction**: Extension to 3D filtered backprojection
+8. **Advanced CAT Models**: Implementation of additional chromatic adaptation transforms
 
 ### Research Directions
 1. Joint optimization of multi-stage pipelines
@@ -396,6 +472,8 @@ The `Reading/` directory contains relevant research papers and course materials 
 4. HDR imaging and advanced tone mapping
 5. Mobile deployment and edge computing
 6. Advanced frequency domain techniques
+7. Computed tomography applications
+8. Perceptual color difference optimization
 
 ---
 
@@ -410,6 +488,7 @@ For questions or suggestions regarding this coursework:
 
 ## Version History
 
+- **v4.0** (Dec 2025): HW4 - Image Reconstruction and Color Appearance Model
 - **v3.0** (Nov 2025): HW3 - Frequency Domain Filtering and Image Enhancement
 - **v2.0** (Oct 2025): HW2 - Auto White Balance and Tone Mapping
 - **v1.0** (Sep 2025): HW1 - CFA Demosaicing Methods
@@ -419,12 +498,13 @@ For questions or suggestions regarding this coursework:
 ## Highlights
 
 ### Technical Achievements
-- 10+ algorithm implementations
-- 8+ evaluation scripts
-- 150+ output images and visualizations
-- Comprehensive documentation (4,000+ lines)
+- 12+ algorithm implementations
+- 10+ evaluation scripts
+- 200+ output images and visualizations
+- Comprehensive documentation (5,000+ lines)
 - Reproducible experimental pipelines
 - Manual implementation of complex algorithms
+- Transform theory validation
 
 ### Research Contributions
 - Multi-scale AWB approach validation
@@ -432,6 +512,8 @@ For questions or suggestions regarding this coursework:
 - Scene-dependent performance analysis
 - Frequency-spatial domain equivalence verification
 - Multi-stage enhancement pipeline design
+- Filtered backprojection reconstruction analysis
+- Chromatic adaptation transform comparison
 - Practical algorithm selection guidelines
 
 ### Academic Quality
@@ -444,9 +526,9 @@ For questions or suggestions regarding this coursework:
 
 ---
 
-**This repository represents a comprehensive study of fundamental digital image processing techniques, from low-level sensor data reconstruction to high-level color correction, tone reproduction, and frequency domain processing.**
+**This repository represents a comprehensive study of fundamental digital image processing techniques, from low-level sensor data reconstruction to high-level color correction, tone reproduction, frequency domain processing, image reconstruction, and color appearance modeling.**
 
 ---
 
-*Last Updated: November 2025*  
+*Last Updated: December 2025*  
 *Course: Digital Image Processing, National Taiwan University*
