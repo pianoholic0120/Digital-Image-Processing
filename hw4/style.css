@@ -1,0 +1,422 @@
+/* Academic Style Sheet for Digital Image Processing Homework 4 Report */
+
+/* ===== Typography ===== */
+body {
+    font-family: "Times New Roman", "Times", "Liberation Serif", "DejaVu Serif", serif;
+    font-size: 11pt;
+    line-height: 1.6;
+    max-width: 210mm; /* A4 width */
+    margin: 0 auto;
+    padding: 25mm 20mm;
+    color: #000;
+    background-color: #fff;
+    text-align: justify;
+    hyphens: auto;
+}
+
+/* Headings */
+h1 {
+    font-size: 18pt;
+    font-weight: bold;
+    text-align: center;
+    margin-top: 0;
+    margin-bottom: 12pt;
+    color: #000;
+    border-bottom: 2pt solid #000;
+    padding-bottom: 6pt;
+    page-break-after: avoid;
+}
+
+h2 {
+    font-size: 14pt;
+    font-weight: bold;
+    margin-top: 18pt;
+    margin-bottom: 10pt;
+    color: #000;
+    border-bottom: 1pt solid #666;
+    padding-bottom: 4pt;
+    page-break-after: avoid;
+}
+
+h3 {
+    font-size: 12pt;
+    font-weight: bold;
+    margin-top: 14pt;
+    margin-bottom: 8pt;
+    color: #000;
+    page-break-after: avoid;
+}
+
+h4 {
+    font-size: 11pt;
+    font-weight: bold;
+    margin-top: 12pt;
+    margin-bottom: 6pt;
+    color: #000;
+    font-style: italic;
+    page-break-after: avoid;
+}
+
+/* Paragraphs */
+p {
+    margin: 6pt 0;
+    text-indent: 0;
+    orphans: 3;
+    widows: 3;
+}
+
+/* Lists */
+ul, ol {
+    margin: 8pt 0;
+    padding-left: 25pt;
+}
+
+li {
+    margin: 4pt 0;
+    line-height: 1.5;
+}
+
+/* Strong and emphasis */
+strong {
+    font-weight: bold;
+    color: #000;
+}
+
+em {
+    font-style: italic;
+}
+
+/* ===== Tables ===== */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12pt auto;
+    font-size: 10pt;
+    page-break-inside: avoid;
+    border: 1pt solid #000;
+}
+
+table caption {
+    font-weight: bold;
+    margin-bottom: 6pt;
+    text-align: center;
+    font-size: 11pt;
+}
+
+table th {
+    background-color: #f0f0f0;
+    border: 1pt solid #000;
+    padding: 8pt 6pt;
+    text-align: center;
+    font-weight: bold;
+    vertical-align: middle;
+}
+
+table td {
+    border: 1pt solid #000;
+    padding: 6pt 4pt;
+    text-align: center;
+    vertical-align: middle;
+}
+
+table tr:nth-child(even) {
+    background-color: #fafafa;
+}
+
+/* ===== Images ===== */
+img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 12pt auto;
+    border: 0.5pt solid #ccc;
+    page-break-inside: avoid;
+}
+
+/* Individual images in flex containers */
+div[style*="display: flex"] img,
+div[style*="display: grid"] img {
+    margin: 6pt auto;
+}
+
+/* Image containers */
+div[style*="display: flex"] {
+    display: flex;
+    justify-content: space-around;
+    align-items: flex-start;
+    flex-wrap: nowrap;
+    gap: 10pt;
+    margin: 12pt 0;
+    page-break-inside: avoid;
+    width: 100%;
+}
+
+div[style*="display: grid"] {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10pt;
+    margin: 12pt 0;
+    page-break-inside: avoid;
+    width: 100%;
+}
+
+div[style*="text-align: center"] {
+    text-align: center;
+    margin: 8pt 0;
+}
+
+div[style*="text-align: center"] p {
+    margin: 4pt 0;
+    font-size: 10pt;
+    line-height: 1.4;
+}
+
+div[style*="text-align: center"] strong {
+    font-weight: bold;
+    display: block;
+    margin-bottom: 2pt;
+}
+
+/* ===== Math ===== */
+.math {
+    font-family: "Computer Modern", "Latin Modern Math", "STIX Two Math", serif;
+}
+
+/* ===== Code ===== */
+code {
+    font-family: "Courier New", "Courier", monospace;
+    font-size: 10pt;
+    background-color: #f5f5f5;
+    padding: 2pt 4pt;
+    border-radius: 2pt;
+}
+
+pre {
+    font-family: "Courier New", "Courier", monospace;
+    font-size: 9pt;
+    background-color: #f5f5f5;
+    border: 1pt solid #ddd;
+    border-left: 3pt solid #666;
+    padding: 8pt;
+    margin: 10pt 0;
+    overflow-x: auto;
+    page-break-inside: avoid;
+}
+
+/* ===== Blockquotes ===== */
+blockquote {
+    border-left: 3pt solid #666;
+    margin: 10pt 0;
+    padding-left: 15pt;
+    padding-right: 10pt;
+    font-style: italic;
+    color: #333;
+}
+
+/* ===== Horizontal Rules ===== */
+hr {
+    border: none;
+    border-top: 1pt solid #666;
+    margin: 20pt 0;
+    width: 100%;
+}
+
+/* ===== Links ===== */
+a {
+    color: #000;
+    text-decoration: underline;
+}
+
+a:visited {
+    color: #333;
+}
+
+/* ===== Figure Captions ===== */
+figure {
+    margin: 15pt 0;
+    page-break-inside: avoid;
+}
+
+figcaption {
+    font-size: 10pt;
+    text-align: center;
+    margin-top: 6pt;
+    font-style: italic;
+}
+
+/* ===== Section Spacing ===== */
+section {
+    margin-bottom: 20pt;
+}
+
+/* ===== Print Styles ===== */
+@media print {
+    body {
+        max-width: 100%;
+        padding: 10mm 15mm;
+        font-size: 10pt;
+        margin: 0;
+    }
+    
+    h1 {
+        font-size: 16pt;
+        page-break-after: avoid;
+    }
+    
+    h2 {
+        font-size: 13pt;
+        page-break-after: avoid;
+    }
+    
+    h3 {
+        font-size: 11pt;
+        page-break-after: avoid;
+    }
+    
+    img {
+        max-width: 45% !important;
+        height: auto !important;
+        page-break-inside: avoid;
+        page-break-after: avoid;
+    }
+    
+    /* Ensure flex containers don't wrap in print */
+    div[style*="display: flex"] {
+        display: flex !important;
+        flex-wrap: nowrap !important;
+        justify-content: space-between !important;
+        gap: 8pt !important;
+        margin: 10pt 0 !important;
+        page-break-inside: avoid;
+        width: 100% !important;
+    }
+    
+    div[style*="display: flex"] > div {
+        flex: 0 1 48% !important;
+        max-width: 48% !important;
+    }
+    
+    div[style*="display: flex"] img {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    /* Grid containers for print */
+    div[style*="display: grid"] {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 8pt !important;
+        margin: 10pt 0 !important;
+        page-break-inside: avoid;
+        width: 100% !important;
+    }
+    
+    div[style*="display: grid"] img {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    /* Text in image containers */
+    div[style*="text-align: center"] {
+        font-size: 9pt !important;
+        margin: 4pt 0 !important;
+    }
+    
+    div[style*="text-align: center"] p {
+        margin: 2pt 0 !important;
+        font-size: 9pt !important;
+        line-height: 1.3 !important;
+    }
+    
+    table {
+        page-break-inside: avoid;
+        font-size: 9pt;
+    }
+    
+    /* Avoid orphaned headings */
+    h1, h2, h3, h4 {
+        page-break-after: avoid;
+    }
+    
+    /* Keep paragraphs together */
+    p {
+        orphans: 3;
+        widows: 3;
+    }
+    
+    /* Page breaks */
+    .page-break {
+        page-break-before: always;
+    }
+}
+
+/* ===== Screen Styles ===== */
+@media screen {
+    body {
+        background-color: #fafafa;
+        box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        margin-top: 20px;
+        margin-bottom: 20px;
+    }
+    
+    table {
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    img {
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+}
+
+/* ===== Special Formatting ===== */
+.author {
+    text-align: center;
+    font-size: 11pt;
+    margin-bottom: 15pt;
+    font-weight: normal;
+}
+
+/* Table of contents style (if needed) */
+.toc {
+    margin: 20pt 0;
+    padding: 10pt;
+    border: 1pt solid #ddd;
+    background-color: #f9f9f9;
+}
+
+/* References section */
+.references {
+    font-size: 10pt;
+    margin-top: 20pt;
+}
+
+.references ol {
+    list-style: decimal;
+    padding-left: 20pt;
+}
+
+.references li {
+    margin: 4pt 0;
+    text-indent: -10pt;
+    padding-left: 10pt;
+}
+
+/* Appendix */
+.appendix {
+    margin-top: 25pt;
+}
+
+.appendix h2 {
+    font-size: 13pt;
+    border-bottom: 1pt solid #666;
+}
+
+/* Abstract style (if needed) */
+.abstract {
+    margin: 15pt 0;
+    padding: 10pt;
+    border: 1pt solid #ddd;
+    background-color: #f9f9f9;
+    font-style: italic;
+    text-align: justify;
+}
