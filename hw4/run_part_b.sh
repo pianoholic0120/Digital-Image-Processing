@@ -1,0 +1,2 @@
+python part_b.py --method Bradford --source_image ./images/source_image.tif --target_image ./images/target_image.tif
+python part_b.py --method CAT02 --source_image ./images/source_image.tif --target_image ./images/target_image.tif
