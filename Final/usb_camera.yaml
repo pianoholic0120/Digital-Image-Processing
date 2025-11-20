@@ -1,0 +1,39 @@
+Camera:
+  model: pinhole
+  fx: 660.16043301
+  fy: 660.13095799
+  cx: 327.52944867
+  cy: 251.65433089
+  width: 684
+  height: 496
+  fps: 20.0
+  rgb: 1
+  params:
+    k1: 0.0
+    k2: 0.0
+    p1: 0.0
+    p2: 0.0
+    k3: 0.0
+
+ORB:
+  n_features: 2000
+  scale_factor: 1.2
+  n_levels: 8
+  ini_th_fast: 20
+  min_th_fast: 7
+
+# Tracking parameters
+Tracking:
+  depth_threshold: 40.0
+  depth_map_factor: 1.0
+  camera_fps: 30.0
+
+# Viewer settings (optional)
+Viewer:
+  enabled: true
+  keyframe_size: 0.05
+  keyframe_line_width: 1.0
+  graph_line_width: 0.9
+  point_size: 2.0
+  camera_size: 0.08
+  camera_line_width: 3.0

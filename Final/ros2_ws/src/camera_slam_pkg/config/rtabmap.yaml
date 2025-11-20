@@ -1,0 +1,104 @@
+# RTAB-Map 配置文件
+# 用于单目摄像头三维重建SLAM
+# 配置包含 DBoW2 闭环检测和 g2o 图优化
+
+# ========== 基本设置 ==========
+Rtabmap/DetectionRate: "3.0"
+Rtabmap/CreateIntermediateNodes: "false"
+Rtabmap/TimeThr: "700"
+Rtabmap/MemoryThr: "0"
+Rtabmap/IncrementalMemory: "true"
+Rtabmap/ImagesAlreadyRectified: "false"
+Rtabmap/StartNewMapOnLoopClosure: "true"
+Rtabmap/ImagesKept: "true"
+
+# ========== 特征检测 (ORB) ==========
+# ORB 特征用于视觉里程计和闭环检测
+ORB/IniThFAST: "20"
+ORB/MinThFAST: "7"
+ORB/MaxFeatures: "3000"
+ORB/ScaleFactor: "1.2"
+ORB/NLevels: "8"
+ORB/EdgeThreshold: "31"
+
+# ========== DBoW2 闭环检测配置 ==========
+# DBoW2 用于基于词袋的快速闭环检测
+RGBD/LoopClosureReextractFeatures: "true"
+RGBD/LoopClosureRestart: "false"
+RGBD/LoopClosureMaxNeighbors: "10"
+RGBD/LoopClosureFeatureType: "0"  # 0=ORB, 1=SURF, 2=SIFT
+RGBD/LoopClosureVisEstimationType: "0"  # 0=PnP, 1=ICP, 2=Hybrid
+RGBD/LoopClosureTimeThreshold: "0"  # 0=disabled, minimum time between loop closures (seconds)
+RGBD/LoopClosureSpaceSimulation: "true"  # Use spatial simulation for loop closure detection
+
+# 词袋字典设置（DBoW2）
+RGBD/LoopClosureDictionarySize: "0"  # 0=use default (1000)
+RGBD/LoopClosureRatioToConfirmLoop: "0.8"  # Minimum ratio to confirm loop closure
+
+# ========== 三维重建设置 ==========
+# 启用3D网格和点云重建
+Grid/3D: "true"
+Grid/FromDepth: "false"  # Monocular, no depth
+Grid/RangeMax: "20.0"  # Maximum range for 3D mapping (meters)
+Grid/RangeMin: "0.1"  # Minimum range (meters)
+Grid/CellSize: "0.05"  # Grid cell size (5cm)
+Grid/MaxObstacleHeight: "2.0"  # Maximum obstacle height (meters)
+Grid/MaxGroundHeight: "0.2"  # Maximum ground height (meters)
+Grid/RayTracing: "true"
+Grid/FootprintHeight: "0.01"
+Grid/FootprintLength: "0.0"
+Grid/FootprintWidth: "0.0"
+Grid/NoiseFilteringRadius: "0.0"
+Grid/NoiseFilteringMinNeighbors: "5"
+
+# 点云重建设置
+RGBD/CreateOccupancyGrid: "true"
+RGBD/OccupancyGridMapEmptyRayTracing: "true"
+RGBD/OccupancyGridNeighborLinkRefining: "true"
+
+# ========== g2o 图优化配置 ==========
+# g2o 用于位姿图优化和全局优化
+Optimizer/Strategy: "1"  # 0=GTSAM, 1=g2o, 2=CVSBA
+Optimizer/Robust: "true"  # Use robust kernel for optimization
+Optimizer/Iterations: "20"  # Number of optimization iterations
+Optimizer/PoseVariance: "0.1"  # Pose variance for optimization
+Optimizer/GravitySigma: "0"  # Gravity constraint (0=disabled)
+Optimizer/GravitySigmaRotation: "0"
+
+# 位姿图优化设置
+RGBD/OptimizeFromGraphEnd: "false"  # Optimize from graph end
+RGBD/OptimizeMaxError: "0.0"  # Maximum error for optimization (0=disabled)
+RGBD/OptimizeIterations: "0"  # Number of iterations (0=auto)
+
+# 图优化阈值
+RGBD/NeighborLinkRefining: "true"  # Refine neighbor links using optimization
+RGBD/LoopClosureReextractFeatures: "true"  # Re-extract features for loop closure
+
+# ========== 视觉里程计设置 ==========
+Reg/Strategy: "0"  # 0=Visual (best for monocular), 1=ICP, 2=Visual+ICP
+Reg/Force3DoF: "false"  # Allow full 6DOF for 3D SLAM
+Reg/EstimateVariance: "true"
+Reg/ForceUpdateAllLinks: "false"
+
+# 视觉注册参数
+RGBD/LinearUpdate: "0.0"  # Minimum linear motion for update (0=always update)
+RGBD/AngularUpdate: "0.0"  # Minimum angular motion for update (0=always update)
+RGBD/ProximityBySpace: "true"  # Use spatial proximity for keyframe selection
+RGBD/ProximityByTime: "true"  # Use temporal proximity
+
+# ========== 内存管理 ==========
+Mem/IncrementalMemory: "true"
+Mem/InitWMWithAllNodes: "true"
+Mem/ImagePreDecimation: "2"  # Reduce image size for faster processing
+Mem/ImagePostDecimation: "2"
+Mem/BadSignaturesIgnored: "true"  # Ignore bad signatures
+
+# ========== 其他优化设置 ==========
+RGBD/LocalBundleOnLoopClosure: "true"  # Local bundle adjustment on loop closure
+RGBD/LocalBundleMaxLinks: "10"  # Maximum links for local bundle adjustment
+RGBD/LocalBundleMinFrames: "10"  # Minimum frames for local bundle adjustment
+
+# 点云输出设置
+RGBD/ProximityOdomGuess: "false"
+RGBD/OptimizeFromGraphEnd: "false"
+

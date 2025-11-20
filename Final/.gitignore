@@ -1,0 +1,163 @@
+# Build directories
+build/
+build-*/
+**/build/
+**/build-*/
+# dso/build/
+# Pangolin/build/
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+
+# Compiled binaries and libraries
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+bin/
+lib/
+
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+!**/CMakeLists.txt
+!**/*.cmake.in
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Compiled object files
+*.slo
+*.lo
+*.obj
+
+# Precompiled headers
+*.gch
+*.pch
+
+# Compiled dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled static libraries
+*.lai
+*.la
+*.a
+
+# Executables
+*.out
+*.app
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+*.egg-info/
+dist/
+build/
+
+# Data files and outputs
+*.ply
+*.txt
+!CMakeLists.txt
+!README*.txt
+result.txt
+dso_output/
+**/dso_output/
+*.mp4
+*.avi
+*.mov
+
+# Calibration data
+*.npz
+calibration_data_*.npz
+
+# Log files
+*.log
+logs/
+**/logs/
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*~
+.#*
+
+# Third-party build artifacts
+thirdparty/libzip-1.1.1/build/
+thirdparty/libzip-1.1.1/lib/
+thirdparty/libzip-1.1.1/config.log
+thirdparty/libzip-1.1.1/config.status
+thirdparty/libzip-1.1.1/Makefile
+thirdparty/libzip-1.1.1/stamp-h1
+
+# Image datasets (large files)
+**/images/
+!**/images/.gitkeep
+*.png
+*.jpg
+*.jpeg
+!**/README*.png
+!**/README*.jpg
+
+# Video files
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# Archive files
+*.zip
+*.tar
+*.tar.gz
+*.gz
+!thirdparty/libzip-1.1.1.tar.gz
+
+# macOS specific
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Xcode
+*.xcodeproj/
+*.xcworkspace/
+*.xcuserdata/
+
+# ROS2 workspace
+ros2_ws/install/
+ros2_ws/build/
+ros2_ws/log/
+ros2_ws/*
+
+
+# Test outputs
+test_results/
+*.test
+
+# Coverage reports
+coverage/
+*.gcov
+*.gcda
+*.gcno
+
+# Documentation builds
+docs/_build/
+docs/.doctrees/
+

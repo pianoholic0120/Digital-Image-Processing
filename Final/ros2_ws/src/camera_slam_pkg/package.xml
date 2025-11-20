@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>camera_slam_pkg</name>
+  <version>0.0.0</version>
+  <description>Camera and SLAM package for ROS2</description>
+
+  <maintainer email="user@example.com">user</maintainer>
+  <license>MIT</license>
+
+  <!-- 正確的 Python ROS2 package build tool -->
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <!-- 你程式碼使用到的依賴 -->
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>cv_bridge</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>tf2_geometry_msgs</exec_depend>
+  <exec_depend>image_transport</exec_depend>
+  
+  <!-- RTAB-Map 相關依賴 -->
+  <exec_depend>rtabmap_ros</exec_depend>
+  <exec_depend>rtabmap_slam</exec_depend>
+  <exec_depend>rtabmap_odom</exec_depend>
+  <exec_depend>rtabmap_util</exec_depend>
+  <exec_depend>rtabmap_viz</exec_depend>
+
+  <exec_depend>python3-opencv</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  
+  <!-- RTAB-Map 核心庫依賴（DBoW2, g2o 已包含在 rtabmap 中）-->
+  <!-- 注意：rtabmap 核心庫、DBoW2 和 g2o 需要通過系統包管理器安裝 -->
+  <!-- macOS: brew install rtabmap -->
+  <!-- Ubuntu/Debian: sudo apt-get install ros-humble-rtabmap-ros libdbow2-dev libg2o-dev -->
+
+  <test_depend>ament_lint_auto</test_depend>
+  <test_depend>ament_lint_common</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
