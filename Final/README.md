@@ -1,92 +1,30 @@
-# DSO-SLAM: Direct Sparse Odometry with Real-time Camera Support
+# DSO-SLAM: Direct Sparse Odometry for macOS
 
-This project is an enhanced version of DSO (Direct Sparse Odometry) adapted for macOS (Apple Silicon) with OpenCV 4 support and real-time USB camera input capabilities.
-
-## Overview
-
-DSO-SLAM is a direct sparse visual odometry system that performs real-time 3D reconstruction and camera pose estimation from monocular camera input. This implementation extends the original DSO with the following features:
-
-- **OpenCV 4 Compatibility**: Updated to work with OpenCV 4 API changes
-- **macOS Support**: Optimized for Apple Silicon (ARM64) architecture
-- **Real-time USB Camera Input**: Support for live camera feed processing
-- **Data Export**: Automatic export of point clouds, camera poses, and video
-- **Interactive Controls**: Keyboard controls for camera mode (start/stop processing)
+Enhanced DSO (Direct Sparse Odometry) implementation with macOS (Apple Silicon) support, OpenCV 4 compatibility, and real-time USB camera input.
 
 ## Features
 
-### Real-time Processing
-
-- Process images from USB cameras or pre-recorded image sequences
-- Interactive keyboard controls: press 's' to start, 'e' to stop and save
-- Real-time 3D visualization using Pangolin
-- Automatic data export upon completion
-
-### Data Export
-
-- **Point Cloud**: Exported in PLY format with color information
-- **Camera Poses**: TUM format trajectory file with all processed frames
-- **Video**: MP4 video export of captured frames
-
-### Visualization
-
-- 3D point cloud rendering
-- Camera trajectory visualization
-- Real-time feature point display
-- Interactive GUI controls
+- **Real-time Visual Odometry**: Monocular SLAM with direct sparse tracking
+- **USB Camera Support**: Live camera feed processing with interactive controls
+- **Image Preprocessing**: Photometric calibration, vignetting removal, and enhancement pipeline
+- **Data Export**: Automatic export of point clouds, camera poses, and video
+- **macOS Optimized**: Full support for Apple Silicon (ARM64) architecture
 
 ## Requirements
 
-### System Requirements
-
+### System
 - macOS (tested on Apple Silicon)
-- CMake 3.10 or higher
-- C++14 compatible compiler
+- CMake 3.10+
+- C++14 compiler
 
 ### Dependencies
-
-#### Required
-
-- **Eigen3**: Linear algebra library
-
-  ```bash
-  brew install eigen
-  ```
-- **SuiteSparse**: Sparse matrix library
-
-  ```bash
-  brew install suitesparse
-  ```
-- **Boost**: C++ libraries (version 1.89+)
-
-  ```bash
-  brew install boost
-  ```
-
-#### Optional but Recommended
-
-- **OpenCV 4**: Image processing and camera support
-
-  ```bash
-  brew install opencv
-  ```
-- **Pangolin**: 3D visualization library
-
-  - Included as a submodule in this repository
-  - Build instructions provided below
+```bash
+brew install eigen suitesparse boost opencv
+```
 
 ## Installation
 
-### 1. Clone the Repository
-
-```bash
-git clone <repository-url>
-cd DIP/Final
-```
-
-### 2. Build Pangolin
-
-Pangolin is required for visualization. Build it first:
-
+### 1. Build Pangolin
 ```bash
 cd Pangolin
 mkdir build && cd build
@@ -95,8 +33,7 @@ make -j4
 cd ../..
 ```
 
-### 3. Build DSO
-
+### 2. Build DSO
 ```bash
 cd dso
 mkdir build && cd build
@@ -104,159 +41,136 @@ cmake ..
 make -j4
 ```
 
-The build process will create:
-
-- `lib/libdso.a`: Static library
-- `bin/dso_dataset`: Main executable
+The executable will be available at `dso/build/bin/dso_dataset`.
 
 ## Usage
 
 ### Camera Calibration
 
-Before running DSO, you need a camera calibration file. Use the provided `calibration.py` script or create a `camera.txt` file manually.
-
-#### Camera Calibration File Format
-
-```
-fx fy cx cy 0
-width height
-none
-width height
+Generate calibration file using `calibration.py`:
+```bash
+python calibration.py
 ```
 
-Where:
+This creates `calib.npz` with camera intrinsics, distortion coefficients, vignette mask, and CRF LUT.
 
-- `fx, fy, cx, cy`: Camera intrinsic parameters (normalized to image dimensions)
-- `width, height`: Image resolution
+### Image Preprocessing
 
-### Running with USB Camera
+Enhance images for better SLAM performance:
+```bash
+python cv.py --input_path ./path/to/input/images --output_path ./path/to/output/images
+```
 
-To process live camera feed:
+The preprocessing pipeline includes:
+- Gamma correction
+- Photometric calibration
+- Exposure compensation
+- Vignetting removal
+- Undistortion
+- Brightness/contrast enhancement
 
+### Running DSO-SLAM
+
+#### USB Camera Mode
 ```bash
 cd dso/build
 bin/dso_dataset camera=0 calib=/path/to/camera.txt preset=0 mode=2
 ```
 
 **Interactive Controls:**
+- Press `s` to start processing
+- Press `e` to stop and save results
 
-- Press **'s'** to start processing
-- Press **'e'** to stop processing and save all data
-
-**Arguments:**
-
-- `camera=N`: Camera device index (0 for default camera)
-- `calib=XXX`: Path to camera calibration file
-- `preset=0`: Processing preset (0=default, 1=real-time, 2=fast)
-- `mode=2`: Photometric mode (0=with calibration, 1=no calibration, 2=no distortion)
-
-### Running with Image Sequence
-
-To process a pre-recorded image sequence:
-
+#### Image Sequence Mode
 ```bash
 bin/dso_dataset files=/path/to/images calib=/path/to/camera.txt preset=0 mode=2
 ```
 
-**Arguments:**
+### Command-Line Arguments
 
-- `files=XXX`: Path to image folder or ZIP archive
-- `calib=XXX`: Path to camera calibration file
-- Other options same as above
+| Argument | Description | Options |
+|----------|-------------|---------|
+| `camera=N` | USB camera device index | `0` (default), `1`, `2`, ... |
+| `files=XXX` | Path to image folder or ZIP archive | - |
+| `calib=XXX` | Path to camera calibration file | Required |
+| `preset=N` | Processing preset | `0`=default, `1`=real-time, `2`=fast |
+| `mode=N` | Photometric mode | `0`=with calib, `1`=no calib, `2`=no distortion |
+| `gamma=XXX` | Photometric gamma calibration file | Optional |
+| `vignette=XXX` | Vignetting mask image | Optional |
 
-### Output Files
+### Output
 
-After processing completes, the following files are saved in `dso_output/`:
-
-- `camera_poses.txt`: Camera trajectory in TUM format (timestamp tx ty tz qx qy qz qw)
-- `point_cloud.ply`: 3D point cloud in PLY format
-- `output_video.mp4`: Video of captured frames (if available)
-- `result.txt`: DSO internal result file
+Results are saved in `dso_output/`:
+- `camera_poses.txt`: Camera trajectory (TUM format: timestamp tx ty tz qx qy qz qw)
+- `point_cloud.ply`: 3D point cloud with colors
+- `output_video.mp4`: Processed video (if available)
+- `result.txt`: DSO internal results
 
 ## Project Structure
 
 ```
 .
-├── dso/                    # Main DSO source code
-│   ├── src/               # Source files
-│   │   ├── main_dso_pangolin.cpp  # Main executable
-│   │   ├── util/          # Utilities including CameraReader and DataExporter
-│   │   └── IOWrapper/     # Input/Output wrappers
-│   ├── build/             # Build directory
-│   └── CMakeLists.txt     # Build configuration
-├── Pangolin/              # Pangolin visualization library
-├── calibration.py         # Camera calibration script
-└── README.md             # This file
+├── dso/                    # DSO source code
+│   ├── src/
+│   │   ├── main_dso_pangolin.cpp
+│   │   ├── util/           # CameraReader, DataExporter
+│   │   └── IOWrapper/      # Input/Output wrappers
+│   └── build/              # Build directory
+├── Pangolin/               # Visualization library
+├── utils/                  # Image processing utilities
+│   ├── usb_baseline_pipeline.py
+│   └── build.py
+├── calibration.py          # Camera calibration script
+└── cv.py                   # Image preprocessing script
 ```
 
-## Key Modifications
+## Key Features
 
-### macOS Compatibility
+### Real-time Processing
+- Thread-safe camera access
+- Interactive keyboard controls
+- Real-time 3D visualization
 
-- Fixed OpenGL compatibility issues for macOS
-- Implemented main thread requirements for GUI operations
-- Added thread-safe camera access
-- Fixed Boost library linking for Homebrew installations
-
-### Real-time Camera Support
-
-- Added `CameraReader` class for USB camera input
-- Implemented automatic image resizing to match calibration
-- Added keyboard controls for interactive operation
+### Image Enhancement
+- Photometric calibration pipeline
+- Adaptive exposure compensation
+- Conservative brightness/contrast enhancement (maintains photometric consistency for SLAM)
 
 ### Data Export
-
-- Implemented point cloud export from Pangolin viewer
-- Enhanced camera pose export to include all frames (not just keyframes)
-- Added video export functionality
+- Point cloud export from all keyframes
+- Complete camera trajectory (all frames, not just keyframes)
+- Video export of processed frames
 
 ## Troubleshooting
 
-### Build Issues
-
-**Boost not found:**
-
-- Ensure Boost 1.89+ is installed via Homebrew
-- Check that `BOOST_ROOT` is set correctly in CMakeLists.txt
-
-**OpenGL errors on macOS:**
-
-- The project includes fixes for macOS OpenGL compatibility
-- Ensure you're building on the main thread for GUI operations
+**Build errors:**
+- Ensure all dependencies are installed via Homebrew
+- Check Boost version (1.89+ required)
+- Verify CMake finds all libraries
 
 **Camera not detected:**
-
 - Check camera permissions in System Preferences
-- Try different camera indices (0, 1, 2, etc.)
-- Verify camera is not being used by another application
-
-### Runtime Issues
-
-**Program crashes on macOS:**
-
-- Ensure GUI operations run on the main thread
-- Check that all dependencies are properly linked
-- Verify camera calibration file format
+- Try different camera indices
+- Ensure camera is not used by another application
 
 **Poor tracking quality:**
+- Use accurate camera calibration
+- Ensure sufficient scene texture
+- Avoid excessive image enhancement (maintains photometric consistency)
+- Use appropriate preset for hardware capabilities
 
-- Ensure accurate camera calibration
-- Use appropriate preset for your hardware
-- Check lighting conditions and scene texture
+**Scale drift in turns:**
+- Reduce brightness/contrast enhancement parameters
+- Ensure consistent lighting conditions
+- Use conservative preprocessing settings
 
 ## License
 
-This project is based on DSO (Direct Sparse Odometry), which is licensed under the GNU General Public License Version 3 (GPLv3).
+GNU General Public License Version 3 (GPLv3)
 
-Original DSO repository: https://github.com/JakobEngel/dso
-
-Original DSO-Slam repository: https://github.com/JdeRobot/slam-DSO
+Based on DSO: https://github.com/JakobEngel/dso
 
 ## References
 
 - **Direct Sparse Odometry**, J. Engel, V. Koltun, D. Cremers, arXiv:1607.02565, 2016
 - **A Photometrically Calibrated Benchmark For Monocular Visual Odometry**, J. Engel, V. Usenko, D. Cremers, arXiv:1607.02555, 2016
-
-## Acknowledgments
-
-This project extends the original DSO implementation with macOS support, OpenCV 4 compatibility, and real-time camera input capabilities.

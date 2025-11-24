@@ -126,7 +126,7 @@ if(EXISTS "${Pangolin_DIR}/PangolinConfig.cmake")
     message(STATUS "Pangolin_INCLUDE_DIRS: ${Pangolin_INCLUDE_DIRS}")
     message(STATUS "Pangolin_LIBRARIES: ${Pangolin_LIBRARIES}")
 else()
-    find_package(Pangolin 0.2 QUIET)
+find_package(Pangolin 0.2 QUIET)
 endif()
 
 find_package(OpenCV QUIET)
@@ -180,7 +180,7 @@ include_directories(
 
 # decide if we have pangolin
 if (Pangolin_FOUND)
-    message("--- found PANGOLIN, compiling dso_pangolin library.")
+	message("--- found PANGOLIN, compiling dso_pangolin library.")
     # 確保使用正確的 Pangolin include 目錄（優先使用本地編譯的）
     if(PANGOLIN_ROOT)
         include_directories(${PANGOLIN_ROOT}/components/pango_core/include)
@@ -189,7 +189,7 @@ if (Pangolin_FOUND)
         include_directories(${PANGOLIN_ROOT}/components/pango_windowing/include)
         include_directories(${PANGOLIN_ROOT}/components/pango_geometry/include)
     endif()
-    include_directories( ${Pangolin_INCLUDE_DIRS} ) 
+	include_directories( ${Pangolin_INCLUDE_DIRS} ) 
     # macOS 需要 OpenGL framework 和定義宏
     if(APPLE)
         find_library(OPENGL_LIBRARY OpenGL REQUIRED)
@@ -209,15 +209,15 @@ if (Pangolin_FOUND)
             target_compile_definitions(dso PRIVATE __APPLE__ _OSX_ GL_SILENCE_DEPRECATION)
         endif()
     endif()
-    set(dso_pangolin_SOURCE_FILES 
-      ${PROJECT_SOURCE_DIR}/src/IOWrapper/Pangolin/KeyFrameDisplay.cpp
-      ${PROJECT_SOURCE_DIR}/src/IOWrapper/Pangolin/PangolinDSOViewer.cpp)
-    set(HAS_PANGOLIN 1)
+	set(dso_pangolin_SOURCE_FILES 
+	  ${PROJECT_SOURCE_DIR}/src/IOWrapper/Pangolin/KeyFrameDisplay.cpp
+	  ${PROJECT_SOURCE_DIR}/src/IOWrapper/Pangolin/PangolinDSOViewer.cpp)
+	set(HAS_PANGOLIN 1)
 else ()
-    message("--- could not find PANGOLIN, not compiling dso_pangolin library.")
-    message("    this means there will be no 3D display / GUI available for dso_dataset.")
-    set(dso_pangolin_SOURCE_FILES )
-    set(HAS_PANGOLIN 0)
+	message("--- could not find PANGOLIN, not compiling dso_pangolin library.")
+	message("    this means there will be no 3D display / GUI available for dso_dataset.")
+	set(dso_pangolin_SOURCE_FILES )
+	set(HAS_PANGOLIN 0)
 endif ()
 
 # decide if we have openCV

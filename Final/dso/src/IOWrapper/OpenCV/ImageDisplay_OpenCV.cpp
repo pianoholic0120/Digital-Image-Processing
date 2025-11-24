@@ -103,7 +103,7 @@ void displayImage(const char* windowName, const cv::Mat& image, bool autoSize)
 			#else
 			cv::namedWindow(windowName, cv::WINDOW_NORMAL);
 			if(image.cols > 0 && image.rows > 0) {
-				cv::resizeWindow(windowName, image.cols, image.rows);
+			cv::resizeWindow(windowName, image.cols, image.rows);
 			}
 			openWindows.insert(windowName);
 			#endif
@@ -122,7 +122,7 @@ void displayImage(const char* windowName, const cv::Mat& image, bool autoSize)
 			openCVOperationQueue.push(OpenCVOperation(OpenCVOperation::IMSHOW, std::string(windowName), image));
 		}
 		#else
-		cv::imshow(windowName, image);
+	cv::imshow(windowName, image);
 		#endif
 	}
 }

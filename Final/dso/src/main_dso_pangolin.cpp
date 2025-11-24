@@ -395,7 +395,7 @@ int main( int argc, char** argv )
 	{
 		// Use image folder input
 		reader = new ImageFolderReader(source,calib, gammaCalib, vignette);
-		reader->setGlobalCalibration();
+	reader->setGlobalCalibration();
 	}
 
 
@@ -404,9 +404,9 @@ int main( int argc, char** argv )
 	{
 		float* gamma = (cameraReader != nullptr) ? cameraReader->getPhotometricGamma() : reader->getPhotometricGamma();
 		if(gamma == 0)
-		{
-			printf("ERROR: dont't have photometric calibation. Need to use commandline options mode=1 or mode=2 ");
-			exit(1);
+	{
+		printf("ERROR: dont't have photometric calibation. Need to use commandline options mode=1 or mode=2 ");
+		exit(1);
 		}
 	}
 
@@ -554,18 +554,18 @@ int main( int argc, char** argv )
         {
             // Image folder mode: build list of frames
             for(int i=lstart;i>= 0 && i< numImages && linc*i < linc*lend;i+=linc)
+        {
+            idsToPlay.push_back(i);
+            if(timesToPlayAt.size() == 0)
             {
-                idsToPlay.push_back(i);
-                if(timesToPlayAt.size() == 0)
-                {
-                    timesToPlayAt.push_back((double)0);
-                }
-                else
-                {
+                timesToPlayAt.push_back((double)0);
+            }
+            else
+            {
                     double tsThis = readerPtr->getTimestamp(idsToPlay[idsToPlay.size()-1]);
                     double tsPrev = readerPtr->getTimestamp(idsToPlay[idsToPlay.size()-2]);
-                    timesToPlayAt.push_back(timesToPlayAt.back() +  fabs(tsThis-tsPrev)/playbackSpeed);
-                }
+                timesToPlayAt.push_back(timesToPlayAt.back() +  fabs(tsThis-tsPrev)/playbackSpeed);
+            }
             }
         }
         else
@@ -636,16 +636,16 @@ int main( int argc, char** argv )
             }
             
             // Check initialization status (with mutex protection)
-            {
+        {
                 std::lock_guard<std::mutex> lock(fullSystemMutex);
                 if(fullSystem != nullptr && !fullSystem->initialized)	// if not initialized: reset start time.
-                {
-                    gettimeofday(&tv_start, NULL);
-                    started = clock();
+            {
+                gettimeofday(&tv_start, NULL);
+                started = clock();
                     if(cameraReaderPtr == nullptr && frameIndex > 0 && frameIndex <= (int)timesToPlayAt.size())
                     {
                         sInitializerOffset = timesToPlayAt[frameIndex-1];
-                    }
+            }
                     else
                     {
                         sInitializerOffset = 0.0;
@@ -689,17 +689,17 @@ int main( int argc, char** argv )
             {
                 int currentIdx = frameIndex - 1;
                 if(currentIdx >= 0 && currentIdx < (int)timesToPlayAt.size())
-                {
-                    struct timeval tv_now; gettimeofday(&tv_now, NULL);
-                    double sSinceStart = sInitializerOffset + ((tv_now.tv_sec-tv_start.tv_sec) + (tv_now.tv_usec-tv_start.tv_usec)/(1000.0f*1000.0f));
+            {
+                struct timeval tv_now; gettimeofday(&tv_now, NULL);
+                double sSinceStart = sInitializerOffset + ((tv_now.tv_sec-tv_start.tv_sec) + (tv_now.tv_usec-tv_start.tv_usec)/(1000.0f*1000.0f));
 
                     if(sSinceStart < timesToPlayAt[currentIdx])
                         usleep((int)((timesToPlayAt[currentIdx]-sSinceStart)*1000*1000));
                     else if(sSinceStart > timesToPlayAt[currentIdx]+0.5+0.1*(currentIdx%2))
-                    {
+                {
                         printf("SKIPFRAME %d (play at %f, now it is %f)!\n", currentIdx, timesToPlayAt[currentIdx], sSinceStart);
-                        skipFrame=true;
-                    }
+                    skipFrame=true;
+                }
                 }
             }
 
@@ -747,7 +747,7 @@ int main( int argc, char** argv )
 
             if(img != nullptr)
             {
-                delete img;
+            delete img;
                 img = nullptr;
             }
 
@@ -766,7 +766,7 @@ int main( int argc, char** argv )
                 if(frameIndex < 250 || setting_fullResetRequested)
                 {
                     printf("RESETTING!\n");
-                    
+
                     // Set resetting flag first (without lock, so other threads can see it)
                     resetting = true;
                     
@@ -797,7 +797,7 @@ int main( int argc, char** argv )
                     
                     // Delete old fullSystem
                     try {
-                        delete fullSystem;
+                    delete fullSystem;
                         fullSystem = nullptr;
                     } catch(const std::exception& e) {
                         printf("WARNING: Exception deleting fullSystem during reset: %s\n", e.what());
@@ -824,7 +824,7 @@ int main( int argc, char** argv )
 
                     // Create new fullSystem
                     try {
-                        fullSystem = new FullSystem();
+                    fullSystem = new FullSystem();
                         if(fullSystem == nullptr)
                         {
                             printf("ERROR: Failed to allocate new fullSystem during reset!\n");
@@ -834,8 +834,8 @@ int main( int argc, char** argv )
                         
                         float* gamma = (cameraReaderPtr != nullptr) ? cameraReaderPtr->getPhotometricGamma() : (readerPtr != nullptr ? readerPtr->getPhotometricGamma() : nullptr);
                         fullSystem->setGammaFunction(gamma);
-                        fullSystem->linearizeOperation = (playbackSpeed==0);
-                        fullSystem->outputWrapper = wraps;
+                    fullSystem->linearizeOperation = (playbackSpeed==0);
+                    fullSystem->outputWrapper = wraps;
                     } catch(const std::exception& e) {
                         printf("ERROR: Exception creating new fullSystem during reset: %s\n", e.what());
                         resetting = false;
@@ -865,10 +865,10 @@ int main( int argc, char** argv )
             {
                 std::lock_guard<std::mutex> lock(fullSystemMutex);
                 if(fullSystem != nullptr && fullSystem->isLost)
-                {
+            {
                     printf("LOST!!\n");
                     break;
-                }
+            }
             }
 
         }
@@ -881,7 +881,7 @@ int main( int argc, char** argv )
             if(fullSystem != nullptr)
             {
                 try {
-                    fullSystem->blockUntilMappingIsFinished();
+        fullSystem->blockUntilMappingIsFinished();
                 } catch(...) {
                     printf("WARNING: Exception in blockUntilMappingIsFinished at end\n");
                 }
@@ -902,7 +902,7 @@ int main( int argc, char** argv )
             if(fullSystem != nullptr)
             {
                 try {
-                    fullSystem->printResult("result.txt");
+        fullSystem->printResult("result.txt");
                 } catch(...) {
                     printf("WARNING: Exception in printResult\n");
                 }
@@ -1000,7 +1000,7 @@ int main( int argc, char** argv )
             fcntl(STDIN_FILENO, F_SETFL, oldf);
         });
     }
-    
+
     if(viewer != 0)
     {
         // Start tracking thread first (it runs in parallel)
@@ -1010,7 +1010,7 @@ int main( int argc, char** argv )
         // This ensures all GUI operations are on main thread for macOS
         // The GUI will continue running until window is closed
         viewer->run();
-        
+
         // After GUI exits, wait for tracking thread to finish
         if(runthread.joinable())
         {
@@ -1020,7 +1020,7 @@ int main( int argc, char** argv )
     else
     {
         // If no viewer, just wait for tracking thread
-        runthread.join();
+    runthread.join();
     }
     
     // Wait for keyboard thread to finish (if started)
@@ -1060,22 +1060,22 @@ int main( int argc, char** argv )
 		std::lock_guard<std::mutex> lock(fullSystemMutex);
 		if(fullSystem != nullptr)
 		{
-			for(IOWrap::Output3DWrapper* ow : fullSystem->outputWrapper)
-			{
+	for(IOWrap::Output3DWrapper* ow : fullSystem->outputWrapper)
+	{
 				if(ow != nullptr)
 				{
 					try {
-						ow->join();
-						delete ow;
+		ow->join();
+		delete ow;
 					} catch(...) {
 						printf("WARNING: Exception cleaning up output wrapper\n");
 					}
 				}
-			}
+	}
 
-			printf("DELETE FULLSYSTEM!\n");
+	printf("DELETE FULLSYSTEM!\n");
 			try {
-				delete fullSystem;
+	delete fullSystem;
 				fullSystem = nullptr;
 			} catch(...) {
 				printf("WARNING: Exception deleting fullSystem at cleanup\n");
@@ -1090,7 +1090,7 @@ int main( int argc, char** argv )
 	}
 	else
 	{
-		delete reader;
+	delete reader;
 	}
 
 	printf("EXIT NOW!\n");

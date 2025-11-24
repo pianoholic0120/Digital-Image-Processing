@@ -520,20 +520,20 @@ void FullSystem::activatePointsMT_Reductor(
 	if(min < 0 || max > (int)toOptimize->size() || min >= max) return;
 	
 	try {
-		ImmaturePointTemporaryResidual* tr = new ImmaturePointTemporaryResidual[frameHessians.size()];
+	ImmaturePointTemporaryResidual* tr = new ImmaturePointTemporaryResidual[frameHessians.size()];
 		for(int k=min;k<max && k < (int)toOptimize->size();k++)
-		{
+	{
 			if((*toOptimize)[k] == nullptr) {
 				(*optimized)[k] = nullptr;
 				continue;
 			}
 			try {
-				(*optimized)[k] = optimizeImmaturePoint((*toOptimize)[k],1,tr);
+		(*optimized)[k] = optimizeImmaturePoint((*toOptimize)[k],1,tr);
 			} catch (...) {
 				(*optimized)[k] = nullptr;
 			}
-		}
-		delete[] tr;
+	}
+	delete[] tr;
 	} catch (...) {
 		// Skip if allocation or processing fails
 	}
@@ -572,15 +572,15 @@ void FullSystem::activatePointsMT()
 
 
 	if(frameHessians.empty()) return; // Safety check
-	
+
 	FrameHessian* newestHs = frameHessians.back();
 	if(newestHs == nullptr) return; // Safety check
 
 	// make dist map.
 	if(coarseDistanceMap == nullptr) return; // Safety check
 	try {
-		coarseDistanceMap->makeK(&Hcalib);
-		coarseDistanceMap->makeDistanceMap(frameHessians, newestHs);
+	coarseDistanceMap->makeK(&Hcalib);
+	coarseDistanceMap->makeDistanceMap(frameHessians, newestHs);
 	} catch (...) {
 		// Skip if distance map creation fails
 		return;
@@ -597,16 +597,16 @@ void FullSystem::activatePointsMT()
 		if(host->immaturePoints.empty()) continue;
 
 		try {
-			SE3 fhToNew = newestHs->PRE_worldToCam * host->PRE_camToWorld;
-			Mat33f KRKi = (coarseDistanceMap->K[1] * fhToNew.rotationMatrix().cast<float>() * coarseDistanceMap->Ki[0]);
-			Vec3f Kt = (coarseDistanceMap->K[1] * fhToNew.translation().cast<float>());
+		SE3 fhToNew = newestHs->PRE_worldToCam * host->PRE_camToWorld;
+		Mat33f KRKi = (coarseDistanceMap->K[1] * fhToNew.rotationMatrix().cast<float>() * coarseDistanceMap->Ki[0]);
+		Vec3f Kt = (coarseDistanceMap->K[1] * fhToNew.translation().cast<float>());
 
 
-			for(unsigned int i=0;i<host->immaturePoints.size();i+=1)
-			{
-				ImmaturePoint* ph = host->immaturePoints[i];
+		for(unsigned int i=0;i<host->immaturePoints.size();i+=1)
+		{
+			ImmaturePoint* ph = host->immaturePoints[i];
 				if(ph == nullptr) continue;
-				ph->idxInImmaturePoints = i;
+			ph->idxInImmaturePoints = i;
 
 			// delete points that have never been traced successfully, or that are outlier on the last trace.
 			if(!std::isfinite(ph->idepth_max) || ph->lastTraceStatus == IPS_OUTLIER)
@@ -643,7 +643,7 @@ void FullSystem::activatePointsMT()
 			}
 
 
-				// see if we need to activate point due to distance map.
+			// see if we need to activate point due to distance map.
 				if(!std::isfinite(ph->u) || !std::isfinite(ph->v) || 
 				   !std::isfinite(ph->idepth_max) || !std::isfinite(ph->idepth_min)) {
 					delete ph;
@@ -651,37 +651,37 @@ void FullSystem::activatePointsMT()
 					continue;
 				}
 				
-				Vec3f ptp = KRKi * Vec3f(ph->u, ph->v, 1) + Kt*(0.5f*(ph->idepth_max+ph->idepth_min));
+			Vec3f ptp = KRKi * Vec3f(ph->u, ph->v, 1) + Kt*(0.5f*(ph->idepth_max+ph->idepth_min));
 				if(!std::isfinite(ptp[0]) || !std::isfinite(ptp[1]) || !std::isfinite(ptp[2]) || fabs(ptp[2]) < 1e-6) {
 					delete ph;
 					host->immaturePoints[i]=0;
 					continue;
 				}
 				
-				int u = ptp[0] / ptp[2] + 0.5f;
-				int v = ptp[1] / ptp[2] + 0.5f;
+			int u = ptp[0] / ptp[2] + 0.5f;
+			int v = ptp[1] / ptp[2] + 0.5f;
 
-				if((u > 0 && v > 0 && u < wG[1] && v < hG[1]))
-				{
+			if((u > 0 && v > 0 && u < wG[1] && v < hG[1]))
+			{
 					int idx = u+wG[1]*v;
 					if(idx >= 0 && idx < wG[1]*hG[1]) {
 						float dist = coarseDistanceMap->fwdWarpedIDDistFinal[idx] + (ptp[0]-floorf((float)(ptp[0])));
 
-						if(dist>=currentMinActDist* ph->my_type)
-						{
-							coarseDistanceMap->addIntoDistFinal(u,v);
-							toOptimize.push_back(ph);
+				if(dist>=currentMinActDist* ph->my_type)
+				{
+					coarseDistanceMap->addIntoDistFinal(u,v);
+					toOptimize.push_back(ph);
 						}
 					} else {
 						delete ph;
 						host->immaturePoints[i]=0;
-					}
 				}
-				else
-				{
-					delete ph;
-					host->immaturePoints[i]=0;
-				}
+			}
+			else
+			{
+				delete ph;
+				host->immaturePoints[i]=0;
+			}
 			}
 		} catch (...) {
 			// Skip if processing fails for this host
@@ -704,7 +704,7 @@ void FullSystem::activatePointsMT()
 	if(multiThreading)
 	{
 		try {
-			treadReduce.reduce(boost::bind(&FullSystem::activatePointsMT_Reductor, this, &optimized, &toOptimize, _1, _2, _3, _4), 0, toOptimize.size(), 50);
+		treadReduce.reduce(boost::bind(&FullSystem::activatePointsMT_Reductor, this, &optimized, &toOptimize, _1, _2, _3, _4), 0, toOptimize.size(), 50);
 		} catch (...) {
 			// Skip if reduce fails
 		}
@@ -712,7 +712,7 @@ void FullSystem::activatePointsMT()
 	else
 	{
 		try {
-			activatePointsMT_Reductor(&optimized, &toOptimize, 0, toOptimize.size(), 0, 0);
+		activatePointsMT_Reductor(&optimized, &toOptimize, 0, toOptimize.size(), 0, 0);
 		} catch (...) {
 			// Skip if activation fails
 		}
@@ -736,14 +736,14 @@ void FullSystem::activatePointsMT()
 			
 			try {
 				if(ph->idxInImmaturePoints >= 0 && ph->idxInImmaturePoints < (int)newpoint->host->immaturePoints.size()) {
-					newpoint->host->immaturePoints[ph->idxInImmaturePoints]=0;
+			newpoint->host->immaturePoints[ph->idxInImmaturePoints]=0;
 				}
-				newpoint->host->pointHessians.push_back(newpoint);
-				ef->insertPoint(newpoint);
-				for(PointFrameResidual* r : newpoint->residuals)
+			newpoint->host->pointHessians.push_back(newpoint);
+			ef->insertPoint(newpoint);
+			for(PointFrameResidual* r : newpoint->residuals)
 				{
 					if(r != nullptr) {
-						ef->insertResidual(r);
+				ef->insertResidual(r);
 					}
 				}
 				if(newpoint->efPoint == 0) {
@@ -753,14 +753,14 @@ void FullSystem::activatePointsMT()
 			} catch (...) {
 				// Skip if insertion fails
 				if(newpoint != nullptr) delete newpoint;
-				delete ph;
+			delete ph;
 			}
 		}
 		else if(newpoint == (PointHessian*)((long)(-1)) || ph->lastTraceStatus==IPS_OOB)
 		{
 			if(ph->host != nullptr && ph->idxInImmaturePoints >= 0 && 
 			   ph->idxInImmaturePoints < (int)ph->host->immaturePoints.size()) {
-				ph->host->immaturePoints[ph->idxInImmaturePoints]=0;
+			ph->host->immaturePoints[ph->idxInImmaturePoints]=0;
 			}
 			delete ph;
 		}
@@ -831,12 +831,12 @@ void FullSystem::flagPointsForRemoval()
 			if(ph->idepth_scaled < 0 || ph->residuals.size()==0)
 			{
 				try {
-					host->pointHessiansOut.push_back(ph);
+				host->pointHessiansOut.push_back(ph);
 					if(ph->efPoint != nullptr) {
-						ph->efPoint->stateFlag = EFPointStatus::PS_DROP;
+				ph->efPoint->stateFlag = EFPointStatus::PS_DROP;
 					}
-					host->pointHessians[i]=0;
-					flag_nores++;
+				host->pointHessians[i]=0;
+				flag_nores++;
 				} catch (...) {
 					// Skip if push_back fails
 					continue;
@@ -853,16 +853,16 @@ void FullSystem::flagPointsForRemoval()
 					{
 						if(r == nullptr) continue;
 						try {
-							r->resetOOB();
-							r->linearize(&Hcalib);
+						r->resetOOB();
+						r->linearize(&Hcalib);
 							if(r->efResidual != nullptr) {
-								r->efResidual->isLinearized = false;
+						r->efResidual->isLinearized = false;
 							}
-							r->applyRes(true);
+						r->applyRes(true);
 							if(r->efResidual != nullptr && r->efResidual->isActive())
-							{
-								r->efResidual->fixLinearizationF(ef);
-								ngoodRes++;
+						{
+							r->efResidual->fixLinearizationF(ef);
+							ngoodRes++;
 							}
 						} catch (...) {
 							// Skip if residual processing fails
@@ -873,14 +873,14 @@ void FullSystem::flagPointsForRemoval()
 					{
 						flag_inin++;
 						if(ph->efPoint != nullptr) {
-							ph->efPoint->stateFlag = EFPointStatus::PS_MARGINALIZE;
+						ph->efPoint->stateFlag = EFPointStatus::PS_MARGINALIZE;
 						}
 						host->pointHessiansMarginalized.push_back(ph);
 					}
 					else
 					{
 						if(ph->efPoint != nullptr) {
-							ph->efPoint->stateFlag = EFPointStatus::PS_DROP;
+						ph->efPoint->stateFlag = EFPointStatus::PS_DROP;
 						}
 						host->pointHessiansOut.push_back(ph);
 					}
@@ -891,7 +891,7 @@ void FullSystem::flagPointsForRemoval()
 				{
 					host->pointHessiansOut.push_back(ph);
 					if(ph->efPoint != nullptr) {
-						ph->efPoint->stateFlag = EFPointStatus::PS_DROP;
+					ph->efPoint->stateFlag = EFPointStatus::PS_DROP;
 					}
 
 
@@ -908,9 +908,9 @@ void FullSystem::flagPointsForRemoval()
 			if(host->pointHessians[i]==0 || host->pointHessians[i]==nullptr)
 			{
 				if(!host->pointHessians.empty()) {
-					host->pointHessians[i] = host->pointHessians.back();
-					host->pointHessians.pop_back();
-					i--;
+				host->pointHessians[i] = host->pointHessians.back();
+				host->pointHessians.pop_back();
+				i--;
 				}
 			}
 		}
@@ -1015,7 +1015,7 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
             if(ow != nullptr && fh != nullptr && fh->shell != nullptr)
             {
                 try {
-                    ow->publishCamPose(fh->shell, &Hcalib);
+            ow->publishCamPose(fh->shell, &Hcalib);
                 } catch (...) {
                     // Skip if publishCamPose fails
                 }
@@ -1086,7 +1086,7 @@ void FullSystem::mappingLoop()
 		}
 
 		if(unmappedTrackedFrames.empty()) continue; // Safety check
-		
+
 		FrameHessian* fh = unmappedTrackedFrames.front();
 		unmappedTrackedFrames.pop_front();
 		
@@ -1098,7 +1098,7 @@ void FullSystem::mappingLoop()
 		{
 			lock.unlock();
 			try {
-				makeKeyFrame(fh);
+			makeKeyFrame(fh);
 			} catch (...) {
 				// Skip if makeKeyFrame fails
 				delete fh;
@@ -1116,7 +1116,7 @@ void FullSystem::mappingLoop()
 		{
 			lock.unlock();
 			try {
-				makeNonKeyFrame(fh);
+			makeNonKeyFrame(fh);
 			} catch (...) {
 				// Skip if makeNonKeyFrame fails
 				delete fh;
@@ -1130,11 +1130,11 @@ void FullSystem::mappingLoop()
 				if(fh != nullptr && fh->shell != nullptr)
 				{
 					try {
-						boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
+					boost::unique_lock<boost::mutex> crlock(shellPoseMutex);
 						if(fh->shell->trackingRef != nullptr)
 						{
-							fh->shell->camToWorld = fh->shell->trackingRef->camToWorld * fh->shell->camToTrackingRef;
-							fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(),fh->shell->aff_g2l);
+					fh->shell->camToWorld = fh->shell->trackingRef->camToWorld * fh->shell->camToTrackingRef;
+					fh->setEvalPT_scaled(fh->shell->camToWorld.inverse(),fh->shell->aff_g2l);
 						}
 					} catch (...) {
 						// Skip if pose update fails
@@ -1150,7 +1150,7 @@ void FullSystem::mappingLoop()
 			{
 				lock.unlock();
 				try {
-					makeKeyFrame(fh);
+				makeKeyFrame(fh);
 				} catch (...) {
 					// Skip if makeKeyFrame fails
 					delete fh;
@@ -1162,7 +1162,7 @@ void FullSystem::mappingLoop()
 			{
 				lock.unlock();
 				try {
-					makeNonKeyFrame(fh);
+				makeNonKeyFrame(fh);
 				} catch (...) {
 					// Skip if makeNonKeyFrame fails
 					delete fh;
@@ -1203,7 +1203,7 @@ void FullSystem::makeNonKeyFrame( FrameHessian* fh)
 	}
 
 	try {
-		traceNewCoarse(fh);
+	traceNewCoarse(fh);
 	} catch (...) {
 		// Skip if traceNewCoarse fails
 	}
@@ -1255,14 +1255,14 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 		{
 			if(ph == nullptr) continue;
 			try {
-				PointFrameResidual* r = new PointFrameResidual(ph, fh1, fh);
+			PointFrameResidual* r = new PointFrameResidual(ph, fh1, fh);
 				if(r != nullptr) {
-					r->setState(ResState::IN);
-					ph->residuals.push_back(r);
-					ef->insertResidual(r);
-					ph->lastResiduals[1] = ph->lastResiduals[0];
-					ph->lastResiduals[0] = std::pair<PointFrameResidual*, ResState>(r, ResState::IN);
-					numFwdResAdde+=1;
+			r->setState(ResState::IN);
+			ph->residuals.push_back(r);
+			ef->insertResidual(r);
+			ph->lastResiduals[1] = ph->lastResiduals[0];
+			ph->lastResiduals[0] = std::pair<PointFrameResidual*, ResState>(r, ResState::IN);
+			numFwdResAdde+=1;
 				}
 			} catch (...) {
 				// Skip if residual creation fails
@@ -1284,7 +1284,7 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
 	// =========================== OPTIMIZE ALL =========================
 
 	if(!frameHessians.empty() && frameHessians.back() != nullptr) {
-		fh->frameEnergyTH = frameHessians.back()->frameEnergyTH;
+	fh->frameEnergyTH = frameHessians.back()->frameEnergyTH;
 	}
 	float rmse = 0;
 	try {
@@ -1374,12 +1374,12 @@ void FullSystem::makeKeyFrame( FrameHessian* fh)
         if(ow != nullptr)
         {
             try {
-                ow->publishGraph(ef->connectivityMap);
+        ow->publishGraph(ef->connectivityMap);
             } catch (...) {
                 // Skip if publishGraph fails
             }
             try {
-                ow->publishKeyframes(frameHessians, false, &Hcalib);
+        ow->publishKeyframes(frameHessians, false, &Hcalib);
             } catch (...) {
                 // Skip if publishKeyframes fails
             }

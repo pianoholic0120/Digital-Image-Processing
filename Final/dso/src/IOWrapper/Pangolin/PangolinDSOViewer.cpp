@@ -211,12 +211,12 @@ void PangolinDSOViewer::run()
 				if(validKeyframesSet.find(fh) == validKeyframesSet.end()) continue;
 				
 				try {
-					float blue[3] = {0,0,1};
-					if(this->settings_showKFCameras) fh->drawCam(1,blue,0.1);
+				float blue[3] = {0,0,1};
+				if(this->settings_showKFCameras) fh->drawCam(1,blue,0.1);
 
-					refreshed += (int)(fh->refreshPC(refreshed < 10, this->settings_scaledVarTH, this->settings_absVarTH,
-							this->settings_pointCloudMode, this->settings_minRelBS, this->settings_sparsity));
-					fh->drawPC(1);
+				refreshed += (int)(fh->refreshPC(refreshed < 10, this->settings_scaledVarTH, this->settings_absVarTH,
+						this->settings_pointCloudMode, this->settings_minRelBS, this->settings_sparsity));
+				fh->drawPC(1);
 				} catch (...) {
 					// Skip invalid keyframes
 					continue;
@@ -287,9 +287,9 @@ void PangolinDSOViewer::run()
 		if(setting_render_displayVideo)
 		{
 			try {
-				d_video.Activate();
-				glColor4f(1.0f,1.0f,1.0f,1.0f);
-				texVideo.RenderToViewportFlipY();
+			d_video.Activate();
+			glColor4f(1.0f,1.0f,1.0f,1.0f);
+			texVideo.RenderToViewportFlipY();
 			} catch (...) {
 				// Skip if OpenGL context error
 			}
@@ -298,9 +298,9 @@ void PangolinDSOViewer::run()
 		if(setting_render_displayDepth)
 		{
 			try {
-				d_kfDepth.Activate();
-				glColor4f(1.0f,1.0f,1.0f,1.0f);
-				texKFDepth.RenderToViewportFlipY();
+			d_kfDepth.Activate();
+			glColor4f(1.0f,1.0f,1.0f,1.0f);
+			texKFDepth.RenderToViewportFlipY();
 			} catch (...) {
 				// Skip if OpenGL context error
 			}
@@ -309,9 +309,9 @@ void PangolinDSOViewer::run()
 		if(setting_render_displayResidual)
 		{
 			try {
-				d_residual.Activate();
-				glColor4f(1.0f,1.0f,1.0f,1.0f);
-				texResidual.RenderToViewportFlipY();
+			d_residual.Activate();
+			glColor4f(1.0f,1.0f,1.0f,1.0f);
+			texResidual.RenderToViewportFlipY();
 			} catch (...) {
 				// Skip if OpenGL context error
 			}
@@ -463,10 +463,10 @@ void PangolinDSOViewer::drawConstraints()
 			if(nAct==0 && nMarg>0  )
 			{
 				try {
-					Sophus::Vector3f t = connections[i].from->camToWorld.translation().cast<float>();
-					glVertex3f((GLfloat) t[0],(GLfloat) t[1], (GLfloat) t[2]);
-					t = connections[i].to->camToWorld.translation().cast<float>();
-					glVertex3f((GLfloat) t[0],(GLfloat) t[1], (GLfloat) t[2]);
+				Sophus::Vector3f t = connections[i].from->camToWorld.translation().cast<float>();
+				glVertex3f((GLfloat) t[0],(GLfloat) t[1], (GLfloat) t[2]);
+				t = connections[i].to->camToWorld.translation().cast<float>();
+				glVertex3f((GLfloat) t[0],(GLfloat) t[1], (GLfloat) t[2]);
 				} catch (...) {
 					// Skip invalid connections
 					continue;
@@ -496,10 +496,10 @@ void PangolinDSOViewer::drawConstraints()
 			if(nAct>0)
 			{
 				try {
-					Sophus::Vector3f t = connections[i].from->camToWorld.translation().cast<float>();
-					glVertex3f((GLfloat) t[0],(GLfloat) t[1], (GLfloat) t[2]);
-					t = connections[i].to->camToWorld.translation().cast<float>();
-					glVertex3f((GLfloat) t[0],(GLfloat) t[1], (GLfloat) t[2]);
+				Sophus::Vector3f t = connections[i].from->camToWorld.translation().cast<float>();
+				glVertex3f((GLfloat) t[0],(GLfloat) t[1], (GLfloat) t[2]);
+				t = connections[i].to->camToWorld.translation().cast<float>();
+				glVertex3f((GLfloat) t[0],(GLfloat) t[1], (GLfloat) t[2]);
 				} catch (...) {
 					// Skip invalid connections
 					continue;
@@ -520,9 +520,9 @@ void PangolinDSOViewer::drawConstraints()
 		{
 			if(keyframes[i] == nullptr) continue;
 			try {
-				glVertex3f((float)keyframes[i]->camToWorld.translation()[0],
-						(float)keyframes[i]->camToWorld.translation()[1],
-						(float)keyframes[i]->camToWorld.translation()[2]);
+			glVertex3f((float)keyframes[i]->camToWorld.translation()[0],
+					(float)keyframes[i]->camToWorld.translation()[1],
+					(float)keyframes[i]->camToWorld.translation()[2]);
 			} catch (...) {
 				// Skip invalid keyframes
 				continue;
@@ -542,9 +542,9 @@ void PangolinDSOViewer::drawConstraints()
 		{
 			if(i >= allFramePoses.size()) break; // Safety check
 			try {
-				glVertex3f((float)allFramePoses[i][0],
-						(float)allFramePoses[i][1],
-						(float)allFramePoses[i][2]);
+			glVertex3f((float)allFramePoses[i][0],
+					(float)allFramePoses[i][1],
+					(float)allFramePoses[i][2]);
 			} catch (...) {
 				// Skip invalid poses
 				continue;
@@ -611,11 +611,11 @@ void PangolinDSOViewer::publishGraph(const std::map<uint64_t, Eigen::Vector2i, s
 		// Check if inverse key exists before accessing
 		if(connectivity.count(inverseKey) > 0)
 		{
-			Eigen::Vector2i st = connectivity.at(inverseKey);
-			connections[runningID].bwdAct = st[0];
-			connections[runningID].bwdMarg = st[1];
-			totalActBwd += st[0];
-			totalMargBwd += st[1];
+		Eigen::Vector2i st = connectivity.at(inverseKey);
+		connections[runningID].bwdAct = st[0];
+		connections[runningID].bwdMarg = st[1];
+		totalActBwd += st[0];
+		totalMargBwd += st[1];
 		}
 		else
 		{
@@ -656,7 +656,7 @@ void PangolinDSOViewer::publishKeyframes(
 		   keyframesByKFID[fh->frameID] != nullptr)
 		{
 			try {
-				keyframesByKFID[fh->frameID]->setFromKF(fh, HCalib);
+		keyframesByKFID[fh->frameID]->setFromKF(fh, HCalib);
 			} catch (...) {
 				// Skip if setFromKF fails
 				continue;
@@ -682,8 +682,8 @@ void PangolinDSOViewer::publishCamPose(FrameShell* frame,
 
 	if(currentCam != nullptr) {
 		try {
-			currentCam->setFromF(frame, HCalib);
-			allFramePoses.push_back(frame->camToWorld.translation().cast<float>());
+	currentCam->setFromF(frame, HCalib);
+	allFramePoses.push_back(frame->camToWorld.translation().cast<float>());
 		} catch (...) {
 			// Skip if setFromF fails
 		}
@@ -698,19 +698,19 @@ void PangolinDSOViewer::pushLiveFrame(FrameHessian* image)
 	if(image == nullptr) return; // Safety check
 
 	boost::unique_lock<boost::mutex> lk(openImagesMutex);
-	
+
 	if(internalVideoImg == nullptr) return; // Safety check
 	
 	try {
 		if(image->dI != nullptr) {
 			for(int i=0;i<w*h;i++) // Safety: ensure we don't go out of bounds
 			{
-				internalVideoImg->data[i][0] =
-				internalVideoImg->data[i][1] =
-				internalVideoImg->data[i][2] =
-					image->dI[i][0]*0.8 > 255.0f ? 255.0 : image->dI[i][0]*0.8;
+		internalVideoImg->data[i][0] =
+		internalVideoImg->data[i][1] =
+		internalVideoImg->data[i][2] =
+			image->dI[i][0]*0.8 > 255.0f ? 255.0 : image->dI[i][0]*0.8;
 			}
-			videoImgChanged=true;
+	videoImgChanged=true;
 		}
 	} catch (...) {
 		// Skip if copy fails
@@ -740,8 +740,8 @@ void PangolinDSOViewer::pushDepthImage(MinimalImageB3* image)
 
 	try {
 		if(image->data != nullptr && internalKFImg->data != nullptr) {
-			memcpy(internalKFImg->data, image->data, w*h*3);
-			kfImgChanged=true;
+	memcpy(internalKFImg->data, image->data, w*h*3);
+	kfImgChanged=true;
 		}
 	} catch (...) {
 		// Skip if memcpy fails

@@ -62,9 +62,9 @@ void FullSystem::flagFramesForMarginalization(FrameHessian* newFH)
 		for(int i=setting_maxFrames;i<(int)frameHessians.size();i++)
 		{
 			if(i-setting_maxFrames >= 0 && i-setting_maxFrames < (int)frameHessians.size()) {
-				FrameHessian* fh = frameHessians[i-setting_maxFrames];
+			FrameHessian* fh = frameHessians[i-setting_maxFrames];
 				if(fh != nullptr) {
-					fh->flaggedForMarginalization = true;
+			fh->flaggedForMarginalization = true;
 				}
 			}
 		}
@@ -85,7 +85,7 @@ void FullSystem::flagFramesForMarginalization(FrameHessian* newFH)
 		int out = fh->pointHessiansMarginalized.size() + fh->pointHessiansOut.size();
 
 		if(frameHessians.empty() || frameHessians.back() == nullptr) continue; // Safety check
-		
+
 		Vec2 refToFh=AffLight::fromToVecExposure(frameHessians.back()->ab_exposure, fh->ab_exposure,
 				frameHessians.back()->aff_g2l(), fh->aff_g2l());
 
@@ -138,7 +138,7 @@ void FullSystem::flagFramesForMarginalization(FrameHessian* newFH)
 
 			}
 			if(!fh->targetPrecalc.empty()) {
-				distScore *= -sqrtf(fh->targetPrecalc.back().distanceLL);
+			distScore *= -sqrtf(fh->targetPrecalc.back().distanceLL);
 			}
 
 
@@ -152,8 +152,8 @@ void FullSystem::flagFramesForMarginalization(FrameHessian* newFH)
 		if(toMarginalize != nullptr) {
 //			printf("MARGINALIZE frame %d, as it is the closest (score %.2f)!\n",
 //					toMarginalize->frameID, smallestScore);
-			toMarginalize->flaggedForMarginalization = true;
-			flagged++;
+		toMarginalize->flaggedForMarginalization = true;
+		flagged++;
 		}
 	}
 
@@ -177,7 +177,7 @@ void FullSystem::marginalizeFrame(FrameHessian* frame)
 	}
 
 	try {
-		ef->marginalizeFrame(frame->efFrame);
+	ef->marginalizeFrame(frame->efFrame);
 	} catch (...) {
 		printf("ERROR: ef->marginalizeFrame failed!\n");
 		return;
@@ -200,21 +200,21 @@ void FullSystem::marginalizeFrame(FrameHessian* frame)
 				if(r->target == frame)
 				{
 					try {
-						if(ph->lastResiduals[0].first == r)
-							ph->lastResiduals[0].first=0;
-						else if(ph->lastResiduals[1].first == r)
-							ph->lastResiduals[1].first=0;
+					if(ph->lastResiduals[0].first == r)
+						ph->lastResiduals[0].first=0;
+					else if(ph->lastResiduals[1].first == r)
+						ph->lastResiduals[1].first=0;
 
 						if(r->host != nullptr && r->target != nullptr) {
-							if(r->host->frameID < r->target->frameID)
-								statistics_numForceDroppedResFwd++;
-							else
-								statistics_numForceDroppedResBwd++;
+					if(r->host->frameID < r->target->frameID)
+						statistics_numForceDroppedResFwd++;
+					else
+						statistics_numForceDroppedResBwd++;
 						}
 
-						ef->dropResidual(r->efResidual);
-						deleteOut<PointFrameResidual>(ph->residuals,i);
-						break;
+					ef->dropResidual(r->efResidual);
+					deleteOut<PointFrameResidual>(ph->residuals,i);
+					break;
 					} catch (...) {
 						// Skip if residual deletion fails
 						continue;
@@ -233,7 +233,7 @@ void FullSystem::marginalizeFrame(FrameHessian* frame)
         {
             if(ow != nullptr) {
                 try {
-                    ow->publishKeyframes(v, true, &Hcalib);
+            ow->publishKeyframes(v, true, &Hcalib);
                 } catch (...) {
                     // Skip if publishKeyframes fails
                 }
@@ -250,7 +250,7 @@ void FullSystem::marginalizeFrame(FrameHessian* frame)
 	frame->shell->movedByOpt = frame->w2c_leftEps().norm();
 
 	try {
-		deleteOutOrder<FrameHessian>(frameHessians, frame);
+	deleteOutOrder<FrameHessian>(frameHessians, frame);
 	} catch (...) {
 		printf("ERROR: deleteOutOrder failed in marginalizeFrame!\n");
 		return;
@@ -259,7 +259,7 @@ void FullSystem::marginalizeFrame(FrameHessian* frame)
 	for(unsigned int i=0;i<frameHessians.size();i++)
 	{
 		if(frameHessians[i] != nullptr) {
-			frameHessians[i]->idx = i;
+		frameHessians[i]->idx = i;
 		}
 	}
 

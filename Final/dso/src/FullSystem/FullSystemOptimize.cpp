@@ -645,15 +645,15 @@ void FullSystem::removeOutliers()
 			if(ph->residuals.size() == 0)
 			{
 				try {
-					fh->pointHessiansOut.push_back(ph);
+				fh->pointHessiansOut.push_back(ph);
 					if(ph->efPoint != nullptr) {
-						ph->efPoint->stateFlag = EFPointStatus::PS_DROP;
+				ph->efPoint->stateFlag = EFPointStatus::PS_DROP;
 					}
 					if(!fh->pointHessians.empty()) {
-						fh->pointHessians[i] = fh->pointHessians.back();
-						fh->pointHessians.pop_back();
-						i--;
-						numPointsDropped++;
+				fh->pointHessians[i] = fh->pointHessians.back();
+				fh->pointHessians.pop_back();
+				i--;
+				numPointsDropped++;
 					}
 				} catch (...) {
 					// Skip if removal fails
@@ -663,7 +663,7 @@ void FullSystem::removeOutliers()
 		}
 	}
 	try {
-		ef->dropPointsF();
+	ef->dropPointsF();
 	} catch (...) {
 		printf("ERROR: ef->dropPointsF failed in removeOutliers!\n");
 	}
