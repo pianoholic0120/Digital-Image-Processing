@@ -39,6 +39,13 @@ DIP/
 │   ├── output_part_a/, output_part_b_*/
 │   ├── report.md           # Comprehensive report
 │   └── README.md
+├── hw5/                     # JPEG Compression & Morphological Operations
+│   ├── A_part_a.py         # VLC encoding implementation
+│   ├── A_part_b.py         # Arithmetic encoding implementation
+│   ├── B.py                # Morphological operations
+│   ├── results/            # Output images and data
+│   ├── report.md           # Comprehensive report
+│   └── README.md
 ├── Reading/                 # Course readings and papers
 │   └── [Research papers and materials]
 └── README.md               # This file
@@ -158,6 +165,38 @@ DIP/
 
 ---
 
+### Homework 5: JPEG Image Compression and Morphological Operations
+
+**Topic**: Image Compression Algorithms and Morphological Image Processing
+
+**Part A - JPEG Image Compression**:
+- Variable Length Coding (VLC) with Huffman encoding
+- Arithmetic encoding for AC coefficients
+- Zig-zag scanning and run-length encoding
+- JPEG bitstream structure analysis
+- Compression ratio comparison
+
+**Part B - Morphological Operations**:
+- Erosion and dilation operations
+- Opening (erosion followed by dilation)
+- Closing (dilation followed by erosion)
+- Comprehensive ablation study across 10 kernel sizes
+- Quantitative analysis of operation efficiency
+- Connected components analysis
+
+**Key Results**:
+- VLC compression ratio: **9.33:1**
+- Arithmetic encoding compression ratio: **10.5:1** (12.5% improvement)
+- Optimal kernel size range: **15×15 to 30×30** for balanced precision
+- Opening removes **0.06%-5.34%** of pixels (selective noise removal)
+- Closing adds **0.03%-11.07%** of pixels (selective hole filling)
+
+**Technologies**: Python, NumPy, OpenCV, Pillow
+
+**Details**: See [hw5/README.md](hw5/README.md)
+
+---
+
 ## Research Topics & Methods
 
 ### Image Enhancement
@@ -167,6 +206,7 @@ DIP/
 - Histogram matching
 - Frequency domain filtering
 - Multi-stage enhancement pipelines
+- Morphological operations (erosion, dilation, opening, closing)
 
 ### Color Science
 - Color constancy and illuminant estimation
@@ -201,6 +241,17 @@ DIP/
 - Adaptive parameter selection
 - Statistical estimators (mean, max, p-norms)
 - Manual algorithm implementation
+- Image compression algorithms
+- Morphological image processing
+
+### Image Compression
+- JPEG compression standard
+- Variable Length Coding (VLC) / Huffman encoding
+- Arithmetic encoding
+- Run-length encoding
+- Zig-zag scanning
+- DCT and quantization
+- Bitstream structure analysis
 
 ---
 
@@ -215,6 +266,7 @@ DIP/
 - **Matplotlib**: Visualization and plotting
 - **Pandas**: Data analysis and statistics
 - **Colour Science**: CIEDE2000 calculation, color science utilities
+- **Pillow (PIL)**: Image processing and format support
 
 ### Development Tools
 - **Shell Scripts**: Batch processing automation
@@ -266,6 +318,21 @@ Part B - Chromatic Adaptation   Result
 CAT02 ΔE*00                     5.54
 Bradford ΔE*00                  5.55
 Method Equivalence              Negligible difference
+```
+
+### HW5: JPEG Compression & Morphology
+```
+Part A - Compression            Result
+─────────────────────────────────────────────────
+VLC Compression Ratio           9.33:1
+Arithmetic Compression Ratio    10.5:1
+Arithmetic Improvement          12.5% better
+─────────────────────────────────────────────────
+Part B - Morphological Ops      Result
+─────────────────────────────────────────────────
+Optimal Kernel Size             15×15 to 30×30
+Opening Pixel Removal           0.06%-5.34%
+Closing Pixel Addition          0.03%-11.07%
 ```
 
 ---
@@ -323,7 +390,7 @@ pip3 install opencv-python numpy matplotlib pandas
 
 ```bash
 # Navigate to specific homework
-cd hw1_r14942096    # or hw2, hw3, hw4
+cd hw1_r14942096    # or hw2, hw3, hw4, hw5
 
 # Read the README
 cat README.md
@@ -337,11 +404,11 @@ cat README.md
 ## Repository Statistics
 
 ### Code Metrics (Approximate)
-- **Total Lines of Code**: ~4,000+ lines
-- **Python Files**: 35+ implementations
-- **Test Images**: 15+ across all homeworks
-- **Output Results**: 200+ images and data files
-- **Documentation**: 5,000+ lines
+- **Total Lines of Code**: ~5,000+ lines
+- **Python Files**: 40+ implementations
+- **Test Images**: 20+ across all homeworks
+- **Output Results**: 250+ images and data files
+- **Documentation**: 6,000+ lines
 
 ### Implementation Coverage
 - 3 Demosaicing algorithms (HW1)
@@ -351,6 +418,8 @@ cat README.md
 - Multi-stage image enhancement pipeline (HW3)
 - Filtered backprojection reconstruction (HW4)
 - 2 Chromatic adaptation transforms (HW4)
+- 2 Image compression methods (HW5)
+- 4 Morphological operations (HW5)
 - Multiple evaluation utilities
 - Comprehensive analysis scripts
 
@@ -382,6 +451,13 @@ cat README.md
 4. **Radon transform** enables image reconstruction from projections
 5. **CIEDE2000** provides perceptually uniform color difference measurement
 
+### HW5 Insights
+1. **Arithmetic encoding** achieves better compression than VLC (12.5% improvement)
+2. **Kernel size selection** is critical for morphological operation effectiveness
+3. **Opening and closing** provide selective noise removal and hole filling
+4. **Erosion and dilation** are non-selective but powerful for shape manipulation
+5. **Optimal kernel range** (15×15 to 30×30) balances precision and coverage
+
 ### Cross-Homework Observations
 1. **Simple methods** often provide baseline performance
 2. **Advanced methods** require parameter tuning but offer substantial improvements
@@ -401,6 +477,8 @@ The `Reading/` directory contains relevant research papers and course materials 
 - Frequency domain filtering methods
 - Image reconstruction and Radon transform
 - Color appearance models and chromatic adaptation
+- JPEG compression standards and algorithms
+- Morphological image processing
 
 ---
 
@@ -408,15 +486,17 @@ The `Reading/` directory contains relevant research papers and course materials 
 
 ### Algorithm Families
 
-| Family | HW1 Application | HW2 Application | HW3 Application | HW4 Application | Key Principle |
-|--------|----------------|-----------------|-----------------|----------------|---------------|
-| Statistical | Mean-based interpolation | Grey World, Shades of Gray | - | - | Average properties |
-| Edge-based | P2 adaptive | - | Sobel filtering | - | Gradient analysis |
-| Optimization | P3 stochastic | - | - | - | Weighted combination |
-| Transform | - | Von Kries adaptation | DFT/FFT | Radon, CAT02, Bradford | Diagonal/spectral mapping |
-| Histogram | - | Tone mapping | Histogram equalization | - | CDF matching |
-| Frequency | - | - | Notch filtering | Ramp filtering | Spectral filtering |
-| Reconstruction | - | - | - | Backprojection | Projection integration |
+| Family | HW1 Application | HW2 Application | HW3 Application | HW4 Application | HW5 Application | Key Principle |
+|--------|----------------|-----------------|-----------------|----------------|----------------|---------------|
+| Statistical | Mean-based interpolation | Grey World, Shades of Gray | - | - | - | Average properties |
+| Edge-based | P2 adaptive | - | Sobel filtering | - | - | Gradient analysis |
+| Optimization | P3 stochastic | - | - | - | - | Weighted combination |
+| Transform | - | Von Kries adaptation | DFT/FFT | Radon, CAT02, Bradford | DCT, Zig-zag | Diagonal/spectral mapping |
+| Histogram | - | Tone mapping | Histogram equalization | - | - | CDF matching |
+| Frequency | - | - | Notch filtering | Ramp filtering | - | Spectral filtering |
+| Reconstruction | - | - | - | Backprojection | - | Projection integration |
+| Compression | - | - | - | - | VLC, Arithmetic | Entropy coding |
+| Morphology | - | - | - | - | Erosion, Dilation | Set operations |
 
 ### Performance Patterns
 
@@ -434,22 +514,24 @@ The `Reading/` directory contains relevant research papers and course materials 
 
 ### Progression
 
-**HW1 → HW2 → HW3 → HW4**:
-- From **spatial interpolation** to **color correction** to **frequency domain** to **image reconstruction**
-- From **single metric (PSNR)** to **dual metrics** to **comprehensive analysis** to **multi-metric evaluation**
-- From **3 methods** to **6+ variants** to **multi-stage pipelines** to **transform comparison**
-- From **single-stage** to **multi-stage pipeline** to **ablation studies** to **theoretical validation**
+**HW1 → HW2 → HW3 → HW4 → HW5**:
+- From **spatial interpolation** to **color correction** to **frequency domain** to **image reconstruction** to **compression and morphology**
+- From **single metric (PSNR)** to **dual metrics** to **comprehensive analysis** to **multi-metric evaluation** to **compression ratio analysis**
+- From **3 methods** to **6+ variants** to **multi-stage pipelines** to **transform comparison** to **algorithm comparison**
+- From **single-stage** to **multi-stage pipeline** to **ablation studies** to **theoretical validation** to **quantitative morphology analysis**
 
 ### Skills Developed
 1. Image processing algorithm implementation
 2. Color science and chromatic adaptation
 3. Frequency domain processing and FFT
 4. Image reconstruction from projections
-5. Statistical analysis and evaluation
-6. Technical writing and reporting
-7. Software engineering practices
-8. Manual algorithm implementation
-9. Transform theory and implementation
+5. Image compression algorithms
+6. Morphological image processing
+7. Statistical analysis and evaluation
+8. Technical writing and reporting
+9. Software engineering practices
+10. Manual algorithm implementation
+11. Transform theory and implementation
 
 ---
 
@@ -464,6 +546,8 @@ The `Reading/` directory contains relevant research papers and course materials 
 6. **Multi-Scale Retinex**: Improved illumination correction
 7. **3D Reconstruction**: Extension to 3D filtered backprojection
 8. **Advanced CAT Models**: Implementation of additional chromatic adaptation transforms
+9. **Advanced Compression**: Modern codecs (HEVC, AV1) and learning-based compression
+10. **Advanced Morphology**: Grayscale morphology, hit-or-miss transform, watershed
 
 ### Research Directions
 1. Joint optimization of multi-stage pipelines
@@ -474,6 +558,8 @@ The `Reading/` directory contains relevant research papers and course materials 
 6. Advanced frequency domain techniques
 7. Computed tomography applications
 8. Perceptual color difference optimization
+9. Real-time compression and streaming
+10. Advanced morphological analysis for medical imaging
 
 ---
 
@@ -488,6 +574,7 @@ For questions or suggestions regarding this coursework:
 
 ## Version History
 
+- **v5.0** (Dec 2025): HW5 - JPEG Image Compression and Morphological Operations
 - **v4.0** (Dec 2025): HW4 - Image Reconstruction and Color Appearance Model
 - **v3.0** (Nov 2025): HW3 - Frequency Domain Filtering and Image Enhancement
 - **v2.0** (Oct 2025): HW2 - Auto White Balance and Tone Mapping
@@ -498,13 +585,15 @@ For questions or suggestions regarding this coursework:
 ## Highlights
 
 ### Technical Achievements
-- 12+ algorithm implementations
-- 10+ evaluation scripts
-- 200+ output images and visualizations
-- Comprehensive documentation (5,000+ lines)
+- 15+ algorithm implementations
+- 12+ evaluation scripts
+- 250+ output images and visualizations
+- Comprehensive documentation (6,000+ lines)
 - Reproducible experimental pipelines
 - Manual implementation of complex algorithms
 - Transform theory validation
+- Compression algorithm comparison
+- Morphological operation analysis
 
 ### Research Contributions
 - Multi-scale AWB approach validation
@@ -514,6 +603,8 @@ For questions or suggestions regarding this coursework:
 - Multi-stage enhancement pipeline design
 - Filtered backprojection reconstruction analysis
 - Chromatic adaptation transform comparison
+- Compression algorithm comparative analysis
+- Morphological operation quantitative evaluation
 - Practical algorithm selection guidelines
 
 ### Academic Quality
@@ -526,7 +617,7 @@ For questions or suggestions regarding this coursework:
 
 ---
 
-**This repository represents a comprehensive study of fundamental digital image processing techniques, from low-level sensor data reconstruction to high-level color correction, tone reproduction, frequency domain processing, image reconstruction, and color appearance modeling.**
+**This repository represents a comprehensive study of fundamental digital image processing techniques, from low-level sensor data reconstruction to high-level color correction, tone reproduction, frequency domain processing, image reconstruction, color appearance modeling, image compression, and morphological operations.**
 
 ---
 
