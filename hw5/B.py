@@ -8,9 +8,10 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Manual Morphological Operations (Erosion, Dilation, Opening, Closing)")
     parser.add_argument('--input', type=str, required=True, help='Path to input image (e.g., noisy_rectangle.png)')
     parser.add_argument('--output_dir', type=str, default='output_images', help='Directory to save output images')
+    parser.add_argument('--kernel_size', type=int, default=9, help='Kernel size for morphological operations')
     return parser.parse_args()
 
-def manual_erosion(image, kernel_size=5):
+def manual_erosion(image, kernel_size):
     h, w = image.shape
     pad_size = kernel_size // 2
     
@@ -38,7 +39,7 @@ def manual_erosion(image, kernel_size=5):
     
     return eroded_image.astype(np.uint8)
 
-def manual_dilation(image, kernel_size=5):
+def manual_dilation(image, kernel_size):
     h, w = image.shape
     pad_size = kernel_size // 2
     
@@ -60,12 +61,12 @@ def manual_dilation(image, kernel_size=5):
     
     return dilated_image.astype(np.uint8)
 
-def manual_opening(image, kernel_size=5):
+def manual_opening(image, kernel_size):
     img_eroded = manual_erosion(image, kernel_size)
     img_opened = manual_dilation(img_eroded, kernel_size)
     return img_opened
 
-def manual_closing(image, kernel_size=2):
+def manual_closing(image, kernel_size):
     img_dilated = manual_dilation(image, kernel_size)
     img_closed = manual_erosion(img_dilated, kernel_size)
     return img_closed
@@ -100,7 +101,7 @@ def main():
     
     # Perform Operations
     # Kernel size is 3x3 as implied by typical "square" operations in such problems unless specified otherwise
-    k_size = 3
+    k_size = args.kernel_size
     
     # Erosion
     img_C = manual_erosion(bin_img, kernel_size=k_size)

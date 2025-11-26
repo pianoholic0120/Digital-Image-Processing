@@ -4,16 +4,62 @@ def clean_hexdump(hex_text):
     cleaned_hex = ""
     lines = hex_text.strip().split('\n')
     for line in lines:
-        # Remove the offset (e.g. "00000000: ") and trailing whitespace
         if ':' in line:
             parts = line.split(':')
             if len(parts) > 1:
                 hex_content = parts[1].strip()
-                # Remove the spaces in the middle
                 cleaned_hex += hex_content.replace(" ", "")
-    
-    # Convert the hex string to bytes
     return bytes.fromhex(cleaned_hex)
+
+def print_segment_table(name, marker, offset, length, payload):
+    print("\n============================================================")
+    print(f"SEGMENT: {name}")
+    print("============================================================")
+    print(f"{'Field':<25} | Value")
+    print("-" * 60)
+    print(f"{'Marker':<25} | FF {marker:02X}")
+    print(f"{'Offset':<25} | 0x{offset:04X}")
+
+    if length is None:
+        print(f"{'Length':<25} | - (No payload)")
+        print("============================================================\n")
+        return
+
+    print(f"{'Length':<25} | {length} bytes")
+
+    # ---- Detailed fields ----
+    if marker == 0xE0:   # APP0
+        ident = payload[:4].decode("ascii", errors="ignore")
+        print(f"{'Identifier':<25} | {ident}")
+
+    elif marker == 0xDB: # DQT
+        pq = (payload[0] >> 4) & 0x0F
+        tq = payload[0] & 0x0F
+        print(f"{'Element precision':<25} | {pq}")
+        print(f"{'Destination ID':<25} | {tq}")
+        print(f"{'Table size':<25} | {len(payload)-1} bytes")
+
+    elif marker == 0xC0: # SOF0
+        precision = payload[0]
+        height, width = struct.unpack(">HH", payload[1:5])
+        comp_num = payload[5]
+        print(f"{'Precision':<25} | {precision}")
+        print(f"{'Image Size':<25} | {width} x {height}")
+        print(f"{'Components':<25} | {comp_num}")
+
+    elif marker == 0xC4: # DHT
+        ht_info = payload[0]
+        ht_class = "AC" if (ht_info >> 4) else "DC"
+        ht_id = ht_info & 0x0F
+        print(f"{'Table Class':<25} | {ht_class}")
+        print(f"{'Table ID':<25} | {ht_id}")
+
+    elif marker == 0xDA: # SOS
+        comp = payload[0]
+        print(f"{'Components in scan':<25} | {comp}")
+
+    print("============================================================\n")
+
 
 def parse_jpeg_structure(data):
     MARKERS = {
@@ -25,82 +71,86 @@ def parse_jpeg_structure(data):
         0xDA: "SOS (Start of Scan)",
         0xD9: "EOI (End of Image)"
     }
-    
+
     print(f"{'OFFSET (Hex)':<15} | {'MARKER':<8} | {'SEGMENT NAME':<35} | {'LENGTH':<8} | {'DETAILS'}")
     print("-" * 100)
-    
+
     i = 0
     size = len(data)
-    
+
     while i < size:
         if data[i] == 0xFF:
-            # Handle Padding (FF FF)
+
             if i + 1 < size and data[i+1] == 0xFF:
                 i += 1
                 continue
-            
+
             marker = data[i+1]
-            if marker == 0x00: # Byte stuffing inside ECS
+            if marker == 0x00:
                 i += 2
                 continue
-                
-            offset_str = f"0x{i:04X}"
-            marker_str = f"FF {marker:02X}"
-            name_str = MARKERS.get(marker, f"Unknown (FF {marker:02X})")
-            
-            # 1. Marker without length parameter
-            if marker in [0xD8, 0xD9, 0x01]: 
-                print(f"{offset_str:<15} | {marker_str:<8} | {name_str:<35} | {'-':<8} | Marker only")
-                i += 2
-            
-            # 2. Marker with length parameter
-            else:
-                length = struct.unpack(">H", data[i+2:i+4])[0]
-                payload = data[i+4 : i+2+length]
-                details = ""
-                
-                if marker == 0xE0: # APP0
-                    identifier = payload[:4].decode('ascii', errors='ignore')
-                    details = f"ID: {identifier}"
-                elif marker == 0xDB: # DQT
-                    # DQT may contain multiple tables, each 65 bytes (1 byte info + 64 bytes data)
-                    qty = (length - 2) // 65
-                    ids = []
-                    for q in range(qty):
-                        table_id = payload[q*65] & 0x0F
-                        ids.append(str(table_id))
-                    details = f"Table ID(s): {', '.join(ids)}"
-                elif marker == 0xC0: # SOF0
-                    h, w = struct.unpack(">HH", payload[1:5])
-                    details = f"Size: {w}x{h}"
-                elif marker == 0xC4: # DHT
-                    # Huffman Table info: bit 4=class(0:DC,1:AC), bit 0-3=ID
-                    ht_info = payload[0]
-                    ht_class = "AC" if (ht_info >> 4) else "DC"
-                    ht_id = ht_info & 0x0F
-                    details = f"Type: {ht_class}, ID: {ht_id}"
-                
-                print(f"{offset_str:<15} | {marker_str:<8} | {name_str:<35} | {length:<8} | {details}")
-                
-                # 3. SOS special handling: the following is compressed data (ECS)
-                if marker == 0xDA:
-                    scan_start = i + 2 + length
-                    scan_end = scan_start
-                    # Find the next Marker (EOI)
-                    while scan_end < size - 1:
-                        if data[scan_end] == 0xFF and data[scan_end+1] != 0x00:
-                            break
-                        scan_end += 1
-                    
-                    ecs_len = scan_end - scan_start
-                    print(f"{f'0x{scan_start:04X}':<15} | {'-':<8} | {'ECS (Entropy Coded Segment)':<35} | {ecs_len:<8} | Compressed Data")
-                    i = scan_end
-                    continue
 
-                i += 2 + length
+            segment_name = MARKERS.get(marker, f"Unknown (FF {marker:02X})")
+            offset = i
+            marker_str = f"FF {marker:02X}"
+
+            # SOI / EOI (No payload)
+            if marker in [0xD8, 0xD9]:
+                print(f"0x{i:04X}<15 | {marker_str:<8} | {segment_name:<35} | {'-':<8} | Marker only")
+                print_segment_table(segment_name, marker, offset, None, None)
+                i += 2
+                continue
+
+            # General segment with length
+            length = struct.unpack(">H", data[i+2:i+4])[0]
+            payload = data[i+4:i+2+length]
+
+            # Summary line
+            details = ""
+            if marker == 0xDB:
+                pq = payload[0] >> 4
+                tq = payload[0] & 0x0F
+                details = f"DQT pq={pq}, id={tq}"
+            elif marker == 0xE0:
+                details = f"APP0: {payload[:4].decode('ascii', errors='ignore')}"
+            elif marker == 0xC0:
+                h, w = struct.unpack(">HH", payload[1:5])
+                details = f"{w}x{h}"
+            elif marker == 0xC4:
+                ht_info = payload[0]
+                details = f"Huffman class={ht_info>>4}, id={ht_info&0x0F}"
+
+            print(f"0x{i:04X}       | {marker_str:<8} | {segment_name:<35} | {length:<8} | {details}")
+
+            # Print the full table for this segment
+            print_segment_table(segment_name, marker, offset, length, payload)
+
+            # SOS -> special handling for ECS
+            if marker == 0xDA:
+                scan_start = i + 2 + length
+                scan_end = scan_start
+                while scan_end < size - 1:
+                    if data[scan_end] == 0xFF and data[scan_end+1] != 0x00:
+                        break
+                    scan_end += 1
+
+                ecs_len = scan_end - scan_start
+
+                print(f"0x{scan_start:04X}       | {'-':<8} | {'ECS (Entropy Coded Segment)':<35} | {ecs_len:<8} | Compressed Data")
+                print_segment_table("ECS (Entropy Coded Segment)", 0, scan_start, ecs_len, data[scan_start:scan_end])
+
+                i = scan_end
+                continue
+
+            i += 2 + length
+
         else:
             i += 1
 
+
+# ========================
+# Run Test
+# ========================
 hex_input = """
 00000000: FFD8 FFE0 0010 4A46 4946 0001 0100 0001 
 00000010: 0001 0000 FFDB 0043 0003 0202 0302 0203 
@@ -152,7 +202,5 @@ hex_input = """
 000002F0: 8630 586E 3CED 4016 3396 EC01 EDD4 9200 
 00000300: 3FFF D9 
 """
-
-# Execute
 binary_data = clean_hexdump(hex_input)
 parse_jpeg_structure(binary_data)

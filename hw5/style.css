@@ -1,0 +1,223 @@
+/* Report styling for PDF export */
+body {
+    font-family: 'Times New Roman', serif;
+    line-height: 1.6;
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Page break control */
+.page-break {
+    page-break-before: always;
+}
+
+/* Image styling */
+img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 10px auto;
+    page-break-inside: avoid;
+}
+
+/* Large images - make them smaller for better PDF layout */
+img[alt*="Quantitative Analysis"],
+img[alt*="Zoomed Analysis"] {
+    max-width: 85%;
+    max-height: 500px;
+    object-fit: contain;
+    margin: 10px auto;
+    page-break-inside: avoid;
+}
+
+/* Ablation Study - larger for clarity */
+img[alt*="Ablation Study"] {
+    max-width: 98%;
+    max-height: 700px;
+    width: auto;
+    object-fit: contain;
+    margin: 10px auto;
+    page-break-inside: avoid;
+}
+
+/* Small images - keep them compact */
+img[alt*="1764151882511"] {
+    max-width: 400px;
+    max-height: 300px;
+    margin: 10px auto;
+}
+
+/* Figure containers */
+.figure-container {
+    text-align: center;
+    margin: 10px 0;
+    page-break-inside: avoid;
+}
+
+.figure-caption {
+    font-size: 0.9em;
+    font-style: italic;
+    margin-top: 5px;
+    color: #666;
+}
+
+/* Tables */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0;
+    page-break-inside: avoid;
+    font-size: 0.9em;
+}
+
+table th,
+table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+    text-align: left;
+}
+
+table th {
+    background-color: #f2f2f2;
+    font-weight: bold;
+}
+
+/* Code blocks */
+code {
+    background-color: #f4f4f4;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9em;
+}
+
+pre {
+    background-color: #f4f4f4;
+    padding: 10px;
+    border-radius: 5px;
+    overflow-x: auto;
+    page-break-inside: avoid;
+}
+
+pre code {
+    background-color: transparent;
+    padding: 0;
+}
+
+/* Headings */
+h1 {
+    page-break-before: always;
+    border-bottom: 2px solid #333;
+    padding-bottom: 10px;
+}
+
+h2 {
+    page-break-before: always;
+    margin-top: 30px;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 5px;
+}
+
+h3 {
+    margin-top: 20px;
+    color: #444;
+}
+
+h4 {
+    margin-top: 15px;
+    color: #666;
+}
+
+/* Lists */
+ul, ol {
+    margin: 10px 0;
+    padding-left: 30px;
+}
+
+li {
+    margin: 5px 0;
+}
+
+/* Blockquotes */
+blockquote {
+    border-left: 4px solid #ccc;
+    margin: 15px 0;
+    padding-left: 15px;
+    color: #666;
+    font-style: italic;
+}
+
+/* Two-column layout for large figures */
+.two-column-figure {
+    display: flex;
+    gap: 15px;
+    margin: 20px 0;
+    page-break-inside: avoid;
+}
+
+.two-column-figure img {
+    flex: 1;
+    max-width: 48%;
+}
+
+/* Compact sections */
+.compact-section {
+    margin: 10px 0;
+}
+
+/* Avoid page breaks in critical sections */
+.no-break {
+    page-break-inside: avoid;
+}
+
+/* Print-specific styles */
+@media print {
+    body {
+        padding: 10px;
+        font-size: 11pt;
+    }
+    
+    img {
+        max-height: 400px;
+    }
+    
+    img[alt*="Quantitative Analysis"],
+    img[alt*="Zoomed Analysis"] {
+        max-height: 380px;
+        max-width: 80%;
+    }
+    
+    img[alt*="Ablation Study"] {
+        max-height: 650px;
+        max-width: 96%;
+    }
+    
+    h1, h2 {
+        page-break-after: avoid;
+    }
+    
+    h2, h3 {
+        page-break-before: auto;
+    }
+    
+    .figure-container {
+        page-break-inside: avoid;
+        margin: 8px 0;
+    }
+    
+    table {
+        font-size: 9pt;
+        page-break-inside: avoid;
+    }
+    
+    pre {
+        font-size: 9pt;
+        page-break-inside: avoid;
+    }
+    
+    /* Avoid orphaned headings */
+    h3 + p, h4 + p {
+        page-break-before: avoid;
+    }
+}
