@@ -46,6 +46,7 @@ struct Settings{
     string exposure_gt_file;    // Exposure times ground truth file.
     string calibration_mode;    // Choose "online" or "batch".
     string output_dir;          // Output directory for calibration results.
+    bool no_wait;               // Don't wait for key press at the end.
 };
 
 void run_batch_optimization_task(NonlinearOptimizer *optimizer)
@@ -525,6 +526,7 @@ int main(int argc, char** argv)
     run_settings.keyframe_spacing    = 15; 
     run_settings.min_keyframes_valid = 3;
     run_settings.output_dir = "";  // Empty means don't save
+    run_settings.no_wait = false;  // Default: wait for key press
 
     app.add_option("-i,--image-folder", run_settings.image_folder, "Folder with image files to read.", true);
     app.add_option("--start-image-index", run_settings.start_image_index, "Start reading from this image index.", true);
@@ -538,6 +540,7 @@ int main(int argc, char** argv)
     app.add_option("--keyframe-spacing", run_settings.keyframe_spacing, "Number of frames that keyframes are apart in the backend optimizer.", true);
     app.add_option("--min-keyframes-valid", run_settings.min_keyframes_valid, "Minimum number of frames a feature has to be tracked to be considered for optimization.", true);
     app.add_option("-o,--output-dir", run_settings.output_dir, "Output directory to save pcalib.txt and vignette.png (default: don't save).", true);
+    app.add_flag("--no-wait", run_settings.no_wait, "Don't wait for key press at the end (useful for scripts).");
 
     CLI11_PARSE(app, argc, argv);
 
@@ -599,9 +602,17 @@ int main(int argc, char** argv)
         return -1;
     }
 
-    // wait for key-press, then exit
-    std::cout << "Finished. Press key to exit." << std::endl;
-    cv::waitKey(0);
+    // wait for key-press, then exit (unless --no-wait is set)
+    std::cout << "Finished." << std::endl;
+    if(!run_settings.no_wait)
+    {
+        std::cout << "Press key to exit." << std::endl;
+        cv::waitKey(0);
+    }
+    else
+    {
+        std::cout << "Calibration complete. Exiting automatically." << std::endl;
+    }
 
     return 0;
 }
