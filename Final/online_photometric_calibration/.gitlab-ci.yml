@@ -1,0 +1,43 @@
+# defaults
+image: nikolausdemmel/ubuntu-dev-cv:16.04
+variables:
+  BUILD_TYPE: Release
+
+
+# template definition
+.compile_template: &compile_definition
+  stage: build
+  before_script:
+    - mkdir -p ccache
+    - export CCACHE_BASEDIR=${PWD}
+    - export CCACHE_DIR=${PWD}/ccache
+  cache:
+    paths:
+    - ccache/
+  script:
+    - mkdir build
+    - cd build
+    - cmake .. -DCMAKE_BUILD_TYPE=${BUILD_TYPE}
+    - make -j3
+
+
+release-16.04:
+  <<: *compile_definition
+  
+debug-16.04:
+  variables:
+    BUILD_TYPE: Debug
+  <<: *compile_definition
+
+clang-16.04:
+  variables:
+    CC: /usr/bin/clang-5.0
+    CXX: /usr/bin/clang++-5.0
+  <<: *compile_definition
+
+release-14.04:
+  image: nikolausdemmel/ubuntu-dev-cv:14.04
+  variables:
+    CC: /usr/lib/ccache/gcc
+    CXX: /usr/lib/ccache/g++
+  <<: *compile_definition
