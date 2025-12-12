@@ -33,7 +33,7 @@ if(APPLE)
   # Try to find OpenCV 4 first, then fall back to OpenCV 2.4
   find_package(OpenCV QUIET)
   if(NOT OpenCV_FOUND)
-    find_package(OpenCV 2.4 REQUIRED HINTS /usr/local/opt/opencv@2)
+  find_package(OpenCV 2.4 REQUIRED HINTS /usr/local/opt/opencv@2)
   endif()
 else()
   find_package(OpenCV REQUIRED)

@@ -607,7 +607,7 @@ int main(int argc, char** argv)
     if(!run_settings.no_wait)
     {
         std::cout << "Press key to exit." << std::endl;
-        cv::waitKey(0);
+    cv::waitKey(0);
     }
     else
     {

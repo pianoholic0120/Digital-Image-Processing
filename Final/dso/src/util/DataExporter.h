@@ -7,6 +7,7 @@
 
 #include "FullSystem/FullSystem.h"
 #include "IOWrapper/Pangolin/PangolinDSOViewer.h"
+#include "IOWrapper/Pangolin/DualPangolinDSOViewer.h"
 #include "util/FrameShell.h"
 #include <opencv2/opencv.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -36,6 +37,9 @@ public:
     // Export point cloud from Pangolin viewer
     static void exportPointCloudFromViewer(IOWrap::PangolinDSOViewer* viewer, const std::string& filename);
     
+    // Export point cloud from DualPangolin viewer (for raw or pipeline path)
+    static void exportPointCloudFromDualViewer(IOWrap::DualPangolinDSOViewer* viewer, const std::string& filename, bool isRawPath);
+    
     // Export video from captured frames
     static void exportVideo(const std::vector<cv::Mat>& frames, const std::string& filename, double fps = 30.0);
     
@@ -45,6 +49,22 @@ public:
                          const std::vector<cv::Mat>& frames,
                          const std::string& outputDir,
                          double fps = 30.0);
+    
+    // Export all data for dual mode (with DualPangolin viewer)
+    static void exportAllDual(FullSystem* fullSystem, 
+                              IOWrap::DualPangolinDSOViewer* viewer,
+                              const std::vector<cv::Mat>& frames,
+                              const std::string& outputDir,
+                              double fps,
+                              bool isRawPath);
+    
+    // Calculate and export quantitative metrics
+    static void exportQuantitativeMetrics(FullSystem* fullSystem,
+                                         IOWrap::DualPangolinDSOViewer* viewer,
+                                         const std::string& outputFile,
+                                         bool isRawPath,
+                                         int totalFrames,
+                                         double totalTime);
 };
 
 } // namespace IOWrap

@@ -116,6 +116,21 @@ PhotometricUndistorter::PhotometricUndistorter(
 
 
 
+	// Handle vignette: if empty, create identity map (no vignetting)
+	if(vignetteImage.empty() || vignetteImage == "")
+	{
+		printf("No vignette image provided, using identity (no vignetting)\n");
+		vignetteMap = new float[w*h];
+		vignetteMapInv = new float[w*h];
+		for(int i=0;i<w*h;i++)
+		{
+			vignetteMap[i] = 1.0f;
+			vignetteMapInv[i] = 1.0f;
+		}
+		valid = true;
+		return;
+	}
+
 	printf("Reading Vignette Image from %s\n",vignetteImage.c_str());
 	MinimalImage<unsigned short>* vm16 = IOWrap::readImageBW_16U(vignetteImage.c_str());
 	MinimalImageB* vm8 = IOWrap::readImageBW_8U(vignetteImage.c_str());
