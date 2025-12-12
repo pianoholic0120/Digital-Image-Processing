@@ -65,6 +65,12 @@ public:
                                          bool isRawPath,
                                          int totalFrames,
                                          double totalTime);
+    
+    // Calculate trajectory consistency and reprojection error from exported files
+    // This should be called after Pangolin is closed
+    static void calculateAndUpdateMetricsFromFiles(const std::string& outputDir,
+                                                   const std::string& metricsFile,
+                                                   bool isRawPath);
 };
 
 } // namespace IOWrap

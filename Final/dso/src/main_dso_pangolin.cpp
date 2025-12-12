@@ -125,8 +125,8 @@ void crash_handler(int sig, siginfo_t* info, void* context)
 	
 	printf("\n========================================\n");
 	printf("CRITICAL ERROR: Signal %d received\n", sig);
-	printf("Tracking thread has crashed\n");
-	printf("Attempting to keep GUI alive...\n");
+	printf("Tracking thread has crashed - reconstruction stopped\n");
+	printf("Pangolin viewer will remain open for inspection\n");
 	printf("========================================\n\n");
 	
 	trackingThreadCrashed = true;
@@ -157,6 +157,9 @@ void crash_handler(int sig, siginfo_t* info, void* context)
 	// We can't prevent this, but we've set the flags so if the process
 	// somehow continues, the GUI will know what happened
 	// The real solution is to prevent the crash in the first place
+	
+	// Don't return immediately - let the flags be set and let the tracking thread
+	// detect them and stop processing gracefully
 }
 
 void exitThread()
@@ -1062,7 +1065,8 @@ int main( int argc, char** argv )
                             try { delete img_raw; } catch(...) {}
                             img_raw = nullptr;
                         }
-                        // Don't break - continue to try pipeline path
+                        // Stop processing immediately on crash
+                        break;
                     } catch(...) {
                         printf("ERROR: Unknown exception in addActiveFrame (raw)\n");
                         trackingThreadCrashed = true;
@@ -1071,13 +1075,14 @@ int main( int argc, char** argv )
                             try { delete img_raw; } catch(...) {}
                             img_raw = nullptr;
                         }
-                        // Don't break - continue to try pipeline path
+                        // Stop processing immediately on crash
+                        break;
                     }
                     
                     // Process pipeline path with comprehensive error handling
                     ImageAndExposure* processed_pipeline = nullptr;
                     try {
-                        if(fullSystem_pipeline != nullptr && !trackingThreadCrashed) {
+                        if(fullSystem_pipeline != nullptr && !trackingThreadCrashed && !shouldExit) {
                             fullSystem_pipeline->addActiveFrame(img_pipeline, i);
                             processed_pipeline = img_pipeline;  // Mark as processed
                             img_pipeline = nullptr;  // Transfer ownership, don't delete
@@ -1086,6 +1091,10 @@ int main( int argc, char** argv )
                             if(img_pipeline != nullptr) {
                                 try { delete img_pipeline; } catch(...) {}
                                 img_pipeline = nullptr;
+                            }
+                            if(trackingThreadCrashed || shouldExit) {
+                                // Stop processing immediately
+                                break;
                             }
                         }
                     } catch(const std::exception& e) {
@@ -1096,6 +1105,8 @@ int main( int argc, char** argv )
                             try { delete img_pipeline; } catch(...) {}
                             img_pipeline = nullptr;
                         }
+                        // Stop processing immediately on crash
+                        break;
                     } catch(...) {
                         printf("ERROR: Unknown exception in addActiveFrame (pipeline)\n");
                         trackingThreadCrashed = true;
@@ -1104,6 +1115,8 @@ int main( int argc, char** argv )
                             try { delete img_pipeline; } catch(...) {}
                             img_pipeline = nullptr;
                         }
+                        // Stop processing immediately on crash
+                        break;
                     }
                     
                     // Clean up any remaining images (shouldn't happen if both succeeded)
@@ -1117,11 +1130,16 @@ int main( int argc, char** argv )
                     }
                     
                     // If crashed, stop processing but keep thread alive
-                    if(trackingThreadCrashed) {
-                        printf("Frame processing stopped due to crash, but thread remains alive\n");
+                    if(trackingThreadCrashed || shouldExit) {
+                        printf("Frame processing stopped due to crash/exit flag, but thread remains alive\n");
+                        printf("Reconstruction has stopped. Pangolin viewer will remain open for inspection.\n");
                         // Don't break - let the loop continue but skip processing
                         // This keeps the thread alive so GUI can continue
-                        usleep(100000);  // Sleep to avoid busy waiting
+                        while(trackingThreadCrashed || shouldExit) {
+                            usleep(500000);  // Sleep 500ms to avoid busy waiting
+                            // Keep thread alive but do nothing - GUI will continue running
+                        }
+                        // If flags are cleared (shouldn't happen), continue processing
                         continue;
                     }
                 }
@@ -1160,23 +1178,36 @@ int main( int argc, char** argv )
                     continue;
                 }
                 
+                // Check crash flag before processing
+                if(trackingThreadCrashed || shouldExit) {
+                    if(img != nullptr) {
+                        try { delete img; } catch(...) {}
+                        img = nullptr;
+                    }
+                    break;  // Exit loop immediately
+                }
+                
                 try {
                     fullSystem->addActiveFrame(img, i);
                     img = nullptr;  // Transfer ownership, don't delete
                 } catch(const std::exception& e) {
                     printf("ERROR: Exception in addActiveFrame: %s\n", e.what());
+                    trackingThreadCrashed = true;
+                    crashMessage = std::string("Exception in addActiveFrame: ") + e.what();
                     if(img != nullptr) {
                         try { delete img; } catch(...) {}
                         img = nullptr;
                     }
-                    continue;
+                    break;  // Exit loop on crash
                 } catch(...) {
                     printf("ERROR: Unknown exception in addActiveFrame\n");
+                    trackingThreadCrashed = true;
+                    crashMessage = "Unknown exception in addActiveFrame";
                     if(img != nullptr) {
                         try { delete img; } catch(...) {}
                         img = nullptr;
                     }
-                    continue;
+                    break;  // Exit loop on crash
                 }
             }
 
@@ -1781,7 +1812,7 @@ int main( int argc, char** argv )
 		}
 	}
 
-	// Close Pangolin viewers properly
+	// Close Pangolin viewers properly BEFORE calculating detailed metrics
 	printf("\n==================== CLOSING PANGOLIN ====================\n");
 	if(enableDualMode && dualViewer != nullptr)
 	{
@@ -1820,6 +1851,53 @@ int main( int argc, char** argv )
 		printf("WARNING: Exception destroying Pangolin windows: %s\n", e.what());
 	} catch(...) {
 		printf("WARNING: Unknown exception destroying Pangolin windows\n");
+	}
+	printf("=======================================================\n\n");
+	
+	// Now calculate detailed metrics from exported files (after Pangolin is closed)
+	printf("\n==================== CALCULATING DETAILED METRICS ====================\n");
+	{
+		std::lock_guard<std::mutex> lock(fullSystemMutex);
+		if(enableDualMode && fullSystem_raw != nullptr && fullSystem_pipeline != nullptr)
+		{
+			// Calculate detailed metrics for raw
+			try {
+				printf("Calculating detailed metrics for raw reconstruction...\n");
+				std::string outputDirRaw = "dso_output/raw";
+				std::string metricsFileRaw = outputDirRaw + "/quantitative_metrics.txt";
+				IOWrap::DataExporter::calculateAndUpdateMetricsFromFiles(outputDirRaw, metricsFileRaw, true);
+			} catch(const std::exception& e) {
+				printf("ERROR: Exception calculating detailed metrics for raw: %s\n", e.what());
+			} catch(...) {
+				printf("ERROR: Unknown exception calculating detailed metrics for raw\n");
+			}
+			
+			// Calculate detailed metrics for pipeline
+			try {
+				printf("Calculating detailed metrics for pipeline reconstruction...\n");
+				std::string outputDirPipeline = "dso_output/pipeline";
+				std::string metricsFilePipeline = outputDirPipeline + "/quantitative_metrics.txt";
+				IOWrap::DataExporter::calculateAndUpdateMetricsFromFiles(outputDirPipeline, metricsFilePipeline, false);
+			} catch(const std::exception& e) {
+				printf("ERROR: Exception calculating detailed metrics for pipeline: %s\n", e.what());
+			} catch(...) {
+				printf("ERROR: Unknown exception calculating detailed metrics for pipeline\n");
+			}
+		}
+		else if(fullSystem != nullptr)
+		{
+			// Single mode: calculate detailed metrics
+			try {
+				printf("Calculating detailed metrics...\n");
+				std::string outputDir = "dso_output";
+				std::string metricsFile = outputDir + "/quantitative_metrics.txt";
+				IOWrap::DataExporter::calculateAndUpdateMetricsFromFiles(outputDir, metricsFile, false);
+			} catch(const std::exception& e) {
+				printf("ERROR: Exception calculating detailed metrics: %s\n", e.what());
+			} catch(...) {
+				printf("ERROR: Unknown exception calculating detailed metrics\n");
+			}
+		}
 	}
 	printf("=======================================================\n\n");
 	

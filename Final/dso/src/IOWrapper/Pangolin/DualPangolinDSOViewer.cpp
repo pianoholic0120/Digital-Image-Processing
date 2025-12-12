@@ -132,7 +132,7 @@ void DualPangolinDSOViewer::run()
 
     glEnable(GL_DEPTH_TEST);
 
-    // Left view (raw) - blue color scheme
+    // Left view (raw) - bright yellow color scheme
     // Top half: 3D visualization (0.3 to 1.0)
     pangolin::OpenGlRenderState Visualization3D_camera_raw(
         pangolin::ProjectionMatrix(w, h, 400, 400, w/2, h/2, 0.1, 1000),
@@ -197,12 +197,12 @@ void DualPangolinDSOViewer::run()
 
         if(setting_render_display3D)
         {
-            // Render left view (raw) - blue color
+            // Render left view (raw) - bright yellow color
             Visualization3D_display_raw.Activate(Visualization3D_camera_raw);
             {
                 boost::unique_lock<boost::mutex> lk3d(model3DMutex);
                 
-                // Render raw keyframes with blue color
+                // Render raw keyframes with bright yellow color
                 std::vector<KeyFrameDisplay*> keyframesCopyRaw = keyframesRaw;
                 std::set<KeyFrameDisplay*> validKeyframesSetRaw;
                 for(auto& kf : keyframesRaw) {
@@ -219,8 +219,8 @@ void DualPangolinDSOViewer::run()
                     if(validKeyframesSetRaw.find(fh) == validKeyframesSetRaw.end()) continue;
                     
                     try {
-                        float blue[3] = {0, 0, 1};  // Blue for raw
-                        if(settings_showKFCameras) fh->drawCam(1, blue, 0.1);
+                        float yellow[3] = {1.0f, 1.0f, 0.0f};  // Bright yellow for raw
+                        if(settings_showKFCameras) fh->drawCam(1, yellow, 0.1);
                         
                         refreshed += (int)(fh->refreshPC(refreshed < 10, settings_scaledVarTH, settings_absVarTH,
                                 settings_pointCloudMode, settings_minRelBS, settings_sparsity));
@@ -234,7 +234,7 @@ void DualPangolinDSOViewer::run()
                 // Draw trajectory for raw path
                 if(settings_showTrajectory && !allFramePosesRaw.empty())
                 {
-                    glColor3f(0, 0, 1);  // Blue for raw trajectory
+                    glColor3f(1.0f, 1.0f, 0.0f);  // Bright yellow for raw trajectory
                     glLineWidth(2.0f);
                     glBegin(GL_LINE_STRIP);
                     for(unsigned int i = 0; i < allFramePosesRaw.size(); i++)

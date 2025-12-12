@@ -16,7 +16,10 @@
 #include <opencv2/videoio.hpp>
 #include <fstream>
 #include <iomanip>
+#include <sstream>
 #include <cmath>
+#include <limits>
+#include <Eigen/Dense>
 #include <boost/filesystem.hpp>
 #include <boost/system/error_code.hpp>
 #include <boost/thread/mutex.hpp>
@@ -478,6 +481,477 @@ void DataExporter::exportQuantitativeMetrics(FullSystem* fullSystem,
     
     file.close();
     printf("Exported quantitative metrics to %s\n", outputFile.c_str());
+}
+
+void DataExporter::calculateAndUpdateMetricsFromFiles(const std::string& outputDir,
+                                                       const std::string& metricsFile,
+                                                       bool isRawPath)
+{
+    printf("Calculating detailed metrics from exported files for %s path...\n", (isRawPath ? "RAW" : "PIPELINE"));
+    
+    // Read existing metrics file
+    std::ifstream inFile(metricsFile);
+    if(!inFile.is_open())
+    {
+        printf("WARNING: Cannot open metrics file %s for reading, skipping detailed calculations\n", metricsFile.c_str());
+        return;
+    }
+    
+    // Read all lines
+    std::vector<std::string> lines;
+    std::string line;
+    while(std::getline(inFile, line))
+    {
+        lines.push_back(line);
+    }
+    inFile.close();
+    
+    // Read camera poses
+    std::string posesFile = outputDir + "/camera_poses.txt";
+    std::ifstream posesIn(posesFile);
+    if(!posesIn.is_open())
+    {
+        printf("WARNING: Cannot open camera poses file %s, skipping trajectory calculations\n", posesFile.c_str());
+        return;
+    }
+    
+    std::vector<Eigen::Vector3d> positions;
+    std::vector<Eigen::Quaterniond> orientations;
+    std::vector<double> timestamps;
+    
+    while(std::getline(posesIn, line))
+    {
+        if(line.empty()) continue;
+        
+        std::istringstream iss(line);
+        double timestamp, tx, ty, tz, qx, qy, qz, qw;
+        if(iss >> timestamp >> tx >> ty >> tz >> qx >> qy >> qz >> qw)
+        {
+            positions.push_back(Eigen::Vector3d(tx, ty, tz));
+            orientations.push_back(Eigen::Quaterniond(qw, qx, qy, qz).normalized());
+            timestamps.push_back(timestamp);
+        }
+    }
+    posesIn.close();
+    
+    // Read point cloud and calculate detailed statistics
+    std::string pointCloudFile = outputDir + "/point_cloud.ply";
+    std::ifstream pcIn(pointCloudFile);
+    int numPoints = 0;
+    std::vector<Eigen::Vector3d> pointPositions;
+    double minX = std::numeric_limits<double>::max();
+    double maxX = std::numeric_limits<double>::lowest();
+    double minY = std::numeric_limits<double>::max();
+    double maxY = std::numeric_limits<double>::lowest();
+    double minZ = std::numeric_limits<double>::max();
+    double maxZ = std::numeric_limits<double>::lowest();
+    double sumX = 0.0, sumY = 0.0, sumZ = 0.0;
+    double sumDistFromOrigin = 0.0;
+    
+    if(pcIn.is_open())
+    {
+        std::string header;
+        bool inHeader = true;
+        while(std::getline(pcIn, header))
+        {
+            if(header.find("element vertex") != std::string::npos)
+            {
+                std::istringstream iss(header);
+                std::string dummy1, dummy2;
+                iss >> dummy1 >> dummy2 >> numPoints;
+            }
+            if(header.find("end_header") != std::string::npos)
+            {
+                inHeader = false;
+                continue;
+            }
+            if(!inHeader && numPoints > 0)
+            {
+                // Read point data: x y z r g b
+                std::istringstream iss(header);
+                double x, y, z;
+                int r, g, b;
+                if(iss >> x >> y >> z >> r >> g >> b)
+                {
+                    pointPositions.push_back(Eigen::Vector3d(x, y, z));
+                    sumX += x;
+                    sumY += y;
+                    sumZ += z;
+                    if(x < minX) minX = x;
+                    if(x > maxX) maxX = x;
+                    if(y < minY) minY = y;
+                    if(y > maxY) maxY = y;
+                    if(z < minZ) minZ = z;
+                    if(z > maxZ) maxZ = z;
+                    double dist = sqrt(x*x + y*y + z*z);
+                    sumDistFromOrigin += dist;
+                }
+                // Limit reading to avoid memory issues (sample if too many points)
+                if(pointPositions.size() >= 1000000) break;  // Sample up to 1M points
+            }
+        }
+        pcIn.close();
+    }
+    
+    // Calculate point cloud statistics
+    double avgX = pointPositions.size() > 0 ? (sumX / pointPositions.size()) : 0.0;
+    double avgY = pointPositions.size() > 0 ? (sumY / pointPositions.size()) : 0.0;
+    double avgZ = pointPositions.size() > 0 ? (sumZ / pointPositions.size()) : 0.0;
+    Eigen::Vector3d pointCloudCenter(avgX, avgY, avgZ);
+    double avgDistFromOrigin = pointPositions.size() > 0 ? (sumDistFromOrigin / pointPositions.size()) : 0.0;
+    
+    // Calculate point cloud density (points per cubic meter)
+    double pointCloudVolume = (maxX - minX) * (maxY - minY) * (maxZ - minZ);
+    double pointCloudDensity = pointCloudVolume > 0 ? (numPoints / pointCloudVolume) : 0.0;
+    
+    // Calculate point cloud spread (standard deviation)
+    double sumVarX = 0.0, sumVarY = 0.0, sumVarZ = 0.0;
+    for(const auto& pt : pointPositions)
+    {
+        double dx = pt.x() - avgX;
+        double dy = pt.y() - avgY;
+        double dz = pt.z() - avgZ;
+        sumVarX += dx * dx;
+        sumVarY += dy * dy;
+        sumVarZ += dz * dz;
+    }
+    double stdDevX = pointPositions.size() > 0 ? sqrt(sumVarX / pointPositions.size()) : 0.0;
+    double stdDevY = pointPositions.size() > 0 ? sqrt(sumVarY / pointPositions.size()) : 0.0;
+    double stdDevZ = pointPositions.size() > 0 ? sqrt(sumVarZ / pointPositions.size()) : 0.0;
+    
+    // Calculate trajectory consistency
+    double totalTranslation = 0.0;
+    double totalRotation = 0.0;
+    double maxTranslation = 0.0;
+    double minTranslation = std::numeric_limits<double>::max();
+    int validPairs = 0;
+    
+    if(positions.size() >= 2)
+    {
+        for(size_t i = 1; i < positions.size(); i++)
+        {
+            Eigen::Vector3d translation = positions[i] - positions[i-1];
+            double transNorm = translation.norm();
+            totalTranslation += transNorm;
+            if(transNorm > maxTranslation) maxTranslation = transNorm;
+            if(transNorm < minTranslation) minTranslation = transNorm;
+            
+            // Calculate rotation between consecutive poses
+            Eigen::Quaterniond q1 = orientations[i-1];
+            Eigen::Quaterniond q2 = orientations[i];
+            Eigen::Quaterniond qDiff = q2 * q1.inverse();
+            
+            // Extract rotation angle
+            double angle = 2.0 * acos(std::max(-1.0, std::min(1.0, std::abs(qDiff.w()))));
+            totalRotation += angle;
+            
+            validPairs++;
+        }
+    }
+    
+    // Calculate trajectory smoothness (variance of translation magnitudes)
+    double avgTranslation = validPairs > 0 ? (totalTranslation / validPairs) : 0.0;
+    double translationVariance = 0.0;
+    if(positions.size() >= 2)
+    {
+        for(size_t i = 1; i < positions.size(); i++)
+        {
+            Eigen::Vector3d translation = positions[i] - positions[i-1];
+            double transNorm = translation.norm();
+            double diff = transNorm - avgTranslation;
+            translationVariance += diff * diff;
+        }
+        translationVariance /= validPairs;
+    }
+    
+    // Calculate total trajectory length
+    double totalTrajectoryLength = 0.0;
+    for(size_t i = 1; i < positions.size(); i++)
+    {
+        Eigen::Vector3d translation = positions[i] - positions[i-1];
+        totalTrajectoryLength += translation.norm();
+    }
+    
+    // Calculate trajectory bounding box
+    Eigen::Vector3d minPos = positions[0];
+    Eigen::Vector3d maxPos = positions[0];
+    for(const auto& pos : positions)
+    {
+        for(int i = 0; i < 3; i++)
+        {
+            if(pos[i] < minPos[i]) minPos[i] = pos[i];
+            if(pos[i] > maxPos[i]) maxPos[i] = pos[i];
+        }
+    }
+    Eigen::Vector3d bboxSize = maxPos - minPos;
+    double bboxVolume = bboxSize.x() * bboxSize.y() * bboxSize.z();
+    
+    // Calculate trajectory smoothness metrics
+    std::vector<double> translationMagnitudes;
+    std::vector<double> rotationAngles;
+    std::vector<double> accelerations;
+    std::vector<double> angularVelocities;
+    
+    if(positions.size() >= 2)
+    {
+        for(size_t i = 1; i < positions.size(); i++)
+        {
+            Eigen::Vector3d translation = positions[i] - positions[i-1];
+            double transNorm = translation.norm();
+            translationMagnitudes.push_back(transNorm);
+            
+            Eigen::Quaterniond q1 = orientations[i-1];
+            Eigen::Quaterniond q2 = orientations[i];
+            Eigen::Quaterniond qDiff = q2 * q1.inverse();
+            double angle = 2.0 * acos(std::max(-1.0, std::min(1.0, std::abs(qDiff.w()))));
+            rotationAngles.push_back(angle);
+        }
+        
+        // Calculate accelerations (second derivative of position)
+        if(positions.size() >= 3)
+        {
+            for(size_t i = 2; i < positions.size(); i++)
+            {
+                Eigen::Vector3d v1 = positions[i-1] - positions[i-2];
+                Eigen::Vector3d v2 = positions[i] - positions[i-1];
+                double dt = timestamps[i] - timestamps[i-1];
+                if(dt > 0)
+                {
+                    Eigen::Vector3d accel = (v2 - v1) / dt;
+                    accelerations.push_back(accel.norm());
+                }
+            }
+        }
+        
+        // Calculate angular velocities
+        if(positions.size() >= 2)
+        {
+            for(size_t i = 1; i < positions.size(); i++)
+            {
+                double dt = timestamps[i] - timestamps[i-1];
+                if(dt > 0 && i-1 < rotationAngles.size())
+                {
+                    angularVelocities.push_back(rotationAngles[i-1] / dt);
+                }
+            }
+        }
+    }
+    
+    // Calculate trajectory smoothness scores
+    double translationSmoothness = 0.0;
+    double rotationSmoothness = 0.0;
+    if(translationMagnitudes.size() >= 2)
+    {
+        double sumVar = 0.0;
+        double avg = avgTranslation;
+        for(double mag : translationMagnitudes)
+        {
+            double diff = mag - avg;
+            sumVar += diff * diff;
+        }
+        double variance = sumVar / translationMagnitudes.size();
+        translationSmoothness = 1.0 / (1.0 + sqrt(variance));  // Higher is smoother
+    }
+    
+    if(rotationAngles.size() >= 2)
+    {
+        double sumRot = 0.0;
+        for(double angle : rotationAngles) sumRot += angle;
+        double avgRot = sumRot / rotationAngles.size();
+        double sumVar = 0.0;
+        for(double angle : rotationAngles)
+        {
+            double diff = angle - avgRot;
+            sumVar += diff * diff;
+        }
+        double variance = sumVar / rotationAngles.size();
+        rotationSmoothness = 1.0 / (1.0 + sqrt(variance));  // Higher is smoother
+    }
+    
+    // Calculate average acceleration and angular velocity
+    double avgAcceleration = 0.0;
+    if(!accelerations.empty())
+    {
+        for(double acc : accelerations) avgAcceleration += acc;
+        avgAcceleration /= accelerations.size();
+    }
+    
+    double avgAngularVelocity = 0.0;
+    if(!angularVelocities.empty())
+    {
+        for(double av : angularVelocities) avgAngularVelocity += av;
+        avgAngularVelocity /= angularVelocities.size();
+    }
+    
+    // Calculate trajectory coverage (how much of the space is covered)
+    double trajectoryCoverage = bboxVolume > 0 ? (totalTrajectoryLength / (bboxSize.norm() + 1e-6)) : 0.0;
+    
+    // Now update the metrics file with calculated values
+    std::ofstream outFile(metricsFile);
+    if(!outFile.is_open())
+    {
+        printf("ERROR: Cannot open metrics file %s for writing updated metrics\n", metricsFile.c_str());
+        return;
+    }
+    
+    outFile << std::fixed << std::setprecision(6);
+    
+    // Write header and basic stats (keep from original)
+    bool inTrajectorySection = false;
+    bool inReprojectionSection = false;
+    bool trajectoryWritten = false;
+    bool reprojectionWritten = false;
+    
+    for(size_t i = 0; i < lines.size(); i++)
+    {
+        std::string currentLine = lines[i];
+        
+        // Check if we're entering trajectory section
+        if(currentLine.find("=== Trajectory Consistency ===") != std::string::npos)
+        {
+            inTrajectorySection = true;
+            outFile << currentLine << "\n";
+            trajectoryWritten = true;
+            
+            // Write calculated trajectory metrics
+            if(positions.size() >= 2)
+            {
+                outFile << "Total Trajectory Points: " << positions.size() << "\n";
+                outFile << "Total Trajectory Length: " << totalTrajectoryLength << " meters\n";
+                outFile << "Average Translation per Frame: " << avgTranslation << " meters\n";
+                outFile << "Max Translation per Frame: " << maxTranslation << " meters\n";
+                outFile << "Min Translation per Frame: " << minTranslation << " meters\n";
+                outFile << "Translation Std Deviation: " << sqrt(translationVariance) << " meters\n";
+                outFile << "Translation Smoothness Score: " << translationSmoothness << " (higher is smoother, range 0-1)\n";
+                outFile << "Average Rotation per Frame: " << (validPairs > 0 ? (totalRotation / validPairs) : 0.0) << " radians\n";
+                outFile << "Total Rotation: " << totalRotation << " radians\n";
+                outFile << "Rotation Smoothness Score: " << rotationSmoothness << " (higher is smoother, range 0-1)\n";
+                outFile << "Average Acceleration: " << avgAcceleration << " m/s^2\n";
+                outFile << "Average Angular Velocity: " << avgAngularVelocity << " rad/s\n";
+                outFile << "Trajectory Coverage Ratio: " << trajectoryCoverage << " (length/bbox_diagonal)\n";
+                outFile << "Trajectory Bounding Box:\n";
+                outFile << "  Min: (" << minPos.x() << ", " << minPos.y() << ", " << minPos.z() << ")\n";
+                outFile << "  Max: (" << maxPos.x() << ", " << maxPos.y() << ", " << maxPos.z() << ")\n";
+                outFile << "  Size: (" << bboxSize.x() << ", " << bboxSize.y() << ", " << bboxSize.z() << ") meters\n";
+                outFile << "  Volume: " << bboxVolume << " cubic meters\n";
+            }
+            else
+            {
+                outFile << "Insufficient trajectory data for analysis\n";
+            }
+            continue;
+        }
+        
+        // Check if we're entering reprojection section
+        if(currentLine.find("=== Reprojection Error") != std::string::npos)
+        {
+            inReprojectionSection = true;
+            outFile << currentLine << "\n";
+            reprojectionWritten = true;
+            
+            // Write reprojection error and point cloud information
+            outFile << "Note: DSO does not directly expose per-pixel reprojection errors\n";
+            outFile << "The following metrics are derived from trajectory and point cloud data:\n";
+            outFile << "Total Points in Point Cloud: " << numPoints << "\n";
+            if(positions.size() > 0 && numPoints > 0)
+            {
+                outFile << "Average Points per Camera Pose: " << (numPoints / (double)positions.size()) << "\n";
+            }
+            outFile << "Point Cloud Statistics:\n";
+            outFile << "  Center: (" << pointCloudCenter.x() << ", " << pointCloudCenter.y() << ", " << pointCloudCenter.z() << ")\n";
+            outFile << "  Bounding Box: (" << minX << ", " << minY << ", " << minZ << ") to (" << maxX << ", " << maxY << ", " << maxZ << ")\n";
+            outFile << "  Volume: " << pointCloudVolume << " cubic meters\n";
+            outFile << "  Density: " << pointCloudDensity << " points per cubic meter\n";
+            outFile << "  Spread (Std Dev): X=" << stdDevX << ", Y=" << stdDevY << ", Z=" << stdDevZ << " meters\n";
+            outFile << "  Average Distance from Origin: " << avgDistFromOrigin << " meters\n";
+            outFile << "Trajectory Consistency Score: " << (validPairs > 0 ? (1.0 / (1.0 + sqrt(translationVariance))) : 0.0) << " (higher is better, range 0-1)\n";
+            outFile << "Note: Lower translation variance indicates better trajectory consistency\n";
+            continue;
+        }
+        
+        // Skip old trajectory and reprojection content
+        if(inTrajectorySection && currentLine.find("===") == std::string::npos && 
+           currentLine.find("Note:") == std::string::npos && currentLine.find("Total Frames") == std::string::npos &&
+           currentLine.find("Estimated") == std::string::npos && currentLine.find("Please refer") == std::string::npos)
+        {
+            // Skip old content
+            continue;
+        }
+        
+        if(inReprojectionSection && currentLine.find("===") == std::string::npos && 
+           currentLine.find("Note:") == std::string::npos && currentLine.find("DSO does not") == std::string::npos &&
+           currentLine.find("Reprojection error") == std::string::npos && currentLine.find("Tracking status") == std::string::npos)
+        {
+            // Skip old content
+            continue;
+        }
+        
+        // Check if we're leaving a section
+        if(currentLine.find("===") != std::string::npos && 
+           currentLine.find("Trajectory") == std::string::npos && 
+           currentLine.find("Reprojection") == std::string::npos)
+        {
+            inTrajectorySection = false;
+            inReprojectionSection = false;
+        }
+        
+        outFile << currentLine << "\n";
+    }
+    
+    // If we didn't find the sections, append them
+    if(!trajectoryWritten)
+    {
+        outFile << "\n=== Trajectory Consistency (Detailed) ===\n";
+        if(positions.size() >= 2)
+        {
+            outFile << "Total Trajectory Points: " << positions.size() << "\n";
+            outFile << "Total Trajectory Length: " << totalTrajectoryLength << " meters\n";
+            outFile << "Average Translation per Frame: " << avgTranslation << " meters\n";
+            outFile << "Max Translation per Frame: " << maxTranslation << " meters\n";
+            outFile << "Min Translation per Frame: " << minTranslation << " meters\n";
+            outFile << "Translation Std Deviation: " << sqrt(translationVariance) << " meters\n";
+            outFile << "Translation Smoothness Score: " << translationSmoothness << " (higher is smoother, range 0-1)\n";
+            outFile << "Average Rotation per Frame: " << (validPairs > 0 ? (totalRotation / validPairs) : 0.0) << " radians\n";
+            outFile << "Total Rotation: " << totalRotation << " radians\n";
+            outFile << "Rotation Smoothness Score: " << rotationSmoothness << " (higher is smoother, range 0-1)\n";
+            outFile << "Average Acceleration: " << avgAcceleration << " m/s^2\n";
+            outFile << "Average Angular Velocity: " << avgAngularVelocity << " rad/s\n";
+            outFile << "Trajectory Coverage Ratio: " << trajectoryCoverage << " (length/bbox_diagonal)\n";
+            outFile << "Trajectory Bounding Box:\n";
+            outFile << "  Min: (" << minPos.x() << ", " << minPos.y() << ", " << minPos.z() << ")\n";
+            outFile << "  Max: (" << maxPos.x() << ", " << maxPos.y() << ", " << maxPos.z() << ")\n";
+            outFile << "  Size: (" << bboxSize.x() << ", " << bboxSize.y() << ", " << bboxSize.z() << ") meters\n";
+            outFile << "  Volume: " << bboxVolume << " cubic meters\n";
+        }
+        else
+        {
+            outFile << "Insufficient trajectory data for analysis\n";
+        }
+    }
+    
+    if(!reprojectionWritten)
+    {
+        outFile << "\n=== Reprojection Error (Detailed) ===\n";
+        outFile << "Note: DSO does not directly expose per-pixel reprojection errors\n";
+        outFile << "The following metrics are derived from trajectory and point cloud data:\n";
+        outFile << "Total Points in Point Cloud: " << numPoints << "\n";
+        if(positions.size() > 0 && numPoints > 0)
+        {
+            outFile << "Average Points per Camera Pose: " << (numPoints / (double)positions.size()) << "\n";
+        }
+        outFile << "Point Cloud Statistics:\n";
+        outFile << "  Center: (" << pointCloudCenter.x() << ", " << pointCloudCenter.y() << ", " << pointCloudCenter.z() << ")\n";
+        outFile << "  Bounding Box: (" << minX << ", " << minY << ", " << minZ << ") to (" << maxX << ", " << maxY << ", " << maxZ << ")\n";
+        outFile << "  Volume: " << pointCloudVolume << " cubic meters\n";
+        outFile << "  Density: " << pointCloudDensity << " points per cubic meter\n";
+        outFile << "  Spread (Std Dev): X=" << stdDevX << ", Y=" << stdDevY << ", Z=" << stdDevZ << " meters\n";
+        outFile << "  Average Distance from Origin: " << avgDistFromOrigin << " meters\n";
+        outFile << "Trajectory Consistency Score: " << (validPairs > 0 ? (1.0 / (1.0 + sqrt(translationVariance))) : 0.0) << " (higher is better, range 0-1)\n";
+        outFile << "Note: Lower translation variance indicates better trajectory consistency\n";
+    }
+    
+    outFile.close();
+    printf("Updated quantitative metrics with detailed calculations in %s\n", metricsFile.c_str());
 }
 
 } // namespace IOWrap
