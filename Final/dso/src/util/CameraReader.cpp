@@ -165,15 +165,19 @@ void CameraReader::initializeCalibration(int camWidth, int camHeight, bool enabl
 		// Write RadTan model with specified parameters
 		// Format: RadTan fx fy cx cy k1 k2 r1 r2
 		//         input_width input_height
-		//         rectification_mode ("none" = no rectification, or "crop"/"full" for auto rectification)
+		//         output_calibration (5 floats: fx_rel fy_rel cx_rel cy_rel alpha) OR "crop"/"full"/"none"
 		//         output_width output_height
-		// For pipeline path, use absolute pixel values directly (no rectification)
+		// For pipeline path, use manual output calibration to enable geometric undistortion
+		// Using same relative intrinsics as input (fx_rel, fy_rel, cx_rel, cy_rel) with alpha=1.0
+		// This performs undistortion while maintaining the same field of view
 		// Convert relative values back to absolute pixels for the actual camera resolution
 		calibOut << "RadTan " << (fx_rel * camWidth) << " " << (fy_rel * camHeight) << " "
 		         << (cx_rel * camWidth) << " " << (cy_rel * camHeight)
 		         << " -0.19778828 -0.12460651 -0.00059336 0.00270068\n";
 		calibOut << camWidth << " " << camHeight << "\n";
-		calibOut << "none\n";  // No rectification - use original distortion model
+		// Manual output calibration: use same relative intrinsics (fx_rel, fy_rel, cx_rel, cy_rel) with alpha=1.0
+		// This enables geometric undistortion while maintaining original resolution and field of view
+		calibOut << fx_rel << " " << fy_rel << " " << cx_rel << " " << cy_rel << " 1.0\n";
 		calibOut << camWidth << " " << camHeight << "\n";
 			calibOut.close();
 		}
