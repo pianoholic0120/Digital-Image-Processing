@@ -30,6 +30,13 @@ CameraReader::CameraReader(int cameraIndex, std::string calibFile, std::string g
 	}
 
 	capture.set(cv::CAP_PROP_FPS, 30);
+	
+	// Get camera FPS
+	fps = capture.get(cv::CAP_PROP_FPS);
+	if(fps <= 0 || fps > 120) {
+		fps = 30.0;  // Default to 30 FPS if invalid
+	}
+	printf("Camera FPS: %.2f\n", fps);
 
 	// Get actual camera resolution
 	int camWidth = (int)capture.get(cv::CAP_PROP_FRAME_WIDTH);
@@ -76,10 +83,13 @@ CameraReader::CameraReader(std::string videoFile, std::string calibFile, std::st
 	// Get video properties
 	int camWidth = (int)capture.get(cv::CAP_PROP_FRAME_WIDTH);
 	int camHeight = (int)capture.get(cv::CAP_PROP_FRAME_HEIGHT);
-	double fps = capture.get(cv::CAP_PROP_FPS);
+	this->fps = capture.get(cv::CAP_PROP_FPS);
+	if(this->fps <= 0 || this->fps > 120) {
+		this->fps = 30.0;  // Default to 30 FPS if invalid
+	}
 	int totalFrames = (int)capture.get(cv::CAP_PROP_FRAME_COUNT);
 	printf("Video file opened: %s\n", videoFile.c_str());
-	printf("Resolution: %d x %d, FPS: %.2f, Total frames: %d\n", camWidth, camHeight, fps, totalFrames);
+	printf("Resolution: %d x %d, FPS: %.2f, Total frames: %d\n", camWidth, camHeight, this->fps, totalFrames);
 	
 	// Initialize calibration
 	initializeCalibration(camWidth, camHeight, enableDualMode, enableCLAHE);
@@ -293,6 +303,16 @@ ImageAndExposure* CameraReader::getImage_internal(int unused)
 }
 
 // Destructor
+cv::Mat CameraReader::getOriginalBGRFrame()
+{
+	std::lock_guard<std::mutex> lock(lastFrameMutex);
+	if(lastCapturedFrame.empty())
+	{
+		return cv::Mat();
+	}
+	return lastCapturedFrame.clone();  // Return a copy
+}
+
 CameraReader::~CameraReader()
 {
 	running = false;
@@ -362,8 +382,16 @@ cv::Mat CameraReader::captureFrame()
 	{
 		return cv::Mat();
 	}
+	
+	// Store last captured frame for video recording (only for camera, not video file)
+	// IMPORTANT: Save BEFORE resize to preserve original resolution
+	if(!isVideoFile && !frame.empty())
+	{
+		std::lock_guard<std::mutex> frameLock(lastFrameMutex);
+		lastCapturedFrame = frame.clone();  // Clone to keep a copy of original frame
+	}
 
-	// Resize if needed
+	// Resize if needed (for processing, but we keep original in lastCapturedFrame)
 	if(frame.cols != widthOrg || frame.rows != heightOrg)
 	{
 		cv::Mat resized;

@@ -495,18 +495,116 @@ void DualPangolinDSOViewer::pushLiveFrame(FrameHessian* image)
     boost::unique_lock<boost::mutex> lk(openImagesMutex);
     
     try {
-        if(image->dI != nullptr) {
-            MinimalImageB3* targetImg = isRawSystem ? internalVideoImgRaw : internalVideoImgPipeline;
-            bool* changedFlag = isRawSystem ? &videoImgChangedRaw : &videoImgChangedPipeline;
-            
-            if(targetImg != nullptr) {
-                for(int i = 0; i < w * h; i++) {
-                    float val = image->dI[i][0] * 0.8f;
-                    val = val > 255.0f ? 255.0f : val;
-                    targetImg->data[i][0] = targetImg->data[i][1] = targetImg->data[i][2] = (unsigned char)val;
-                }
-                *changedFlag = true;
+        MinimalImageB3* targetImg = isRawSystem ? internalVideoImgRaw : internalVideoImgPipeline;
+        bool* changedFlag = isRawSystem ? &videoImgChangedRaw : &videoImgChangedPipeline;
+        
+        if(image->dI != nullptr && targetImg != nullptr && targetImg->data != nullptr) {
+            // First, copy the grayscale image
+            for(int i = 0; i < w * h; i++) {
+                float val = image->dI[i][0] * 0.8f;
+                val = val > 255.0f ? 255.0f : val;
+                targetImg->data[i][0] = targetImg->data[i][1] = targetImg->data[i][2] = (unsigned char)val;
             }
+            
+            // NOTE: Feature point drawing is DISABLED to avoid memory corruption
+            // The pointHessians and immaturePoints lists are being modified by the tracking thread
+            // while we're trying to access them, causing "Incorrect checksum for freed object" errors.
+            // 
+            // To safely display feature points, we would need:
+            // 1. Proper mutex protection (not available in current DSO design)
+            // 2. Or only draw points from keyframes (which are more stable)
+            // 3. Or copy the entire FrameHessian (too expensive)
+            //
+            // For now, we disable feature point overlay to ensure stability.
+            // The 3D point cloud visualization still shows all tracked points.
+            
+            // Feature point drawing disabled for stability
+            // Uncomment below code only if proper thread synchronization is added
+            /*
+            const int MAX_POINTS_TO_DRAW = 1000;
+            int pointsDrawn = 0;
+            
+            // Draw active points (pointHessians) in green
+            size_t numPoints = image->pointHessians.size();
+            size_t maxPoints = (numPoints > MAX_POINTS_TO_DRAW) ? MAX_POINTS_TO_DRAW : numPoints;
+            
+            for(size_t i = 0; i < maxPoints && pointsDrawn < MAX_POINTS_TO_DRAW; i++) {
+                PointHessian* ph = image->pointHessians[i];
+                if(ph == nullptr) continue;
+                try {
+                    float u_f = ph->u;
+                    float v_f = ph->v;
+                    int u = (int)(u_f + 0.5f);
+                    int v = (int)(v_f + 0.5f);
+                    if(u >= 0 && u < w && v >= 0 && v < h) {
+                        int idx = v * w + u;
+                        if(idx >= 0 && idx < w * h) {
+                            // Draw green point (small cross)
+                            targetImg->data[idx][0] = 0;      // B
+                            targetImg->data[idx][1] = 255;   // G
+                            targetImg->data[idx][2] = 0;      // R
+                            // Draw small cross around the point
+                            if(u > 0) {
+                                int idx_left = v * w + (u-1);
+                                if(idx_left >= 0 && idx_left < w * h) {
+                                    targetImg->data[idx_left][1] = 255;
+                                }
+                            }
+                            if(u < w-1) {
+                                int idx_right = v * w + (u+1);
+                                if(idx_right >= 0 && idx_right < w * h) {
+                                    targetImg->data[idx_right][1] = 255;
+                                }
+                            }
+                            if(v > 0) {
+                                int idx_up = (v-1) * w + u;
+                                if(idx_up >= 0 && idx_up < w * h) {
+                                    targetImg->data[idx_up][1] = 255;
+                                }
+                            }
+                            if(v < h-1) {
+                                int idx_down = (v+1) * w + u;
+                                if(idx_down >= 0 && idx_down < w * h) {
+                                    targetImg->data[idx_down][1] = 255;
+                                }
+                            }
+                            pointsDrawn++;
+                        }
+                    }
+                } catch (...) {
+                    continue;
+                }
+            }
+            
+            // Draw immature points in yellow (limited count)
+            size_t numImmature = image->immaturePoints.size();
+            size_t maxImmature = (numImmature > (MAX_POINTS_TO_DRAW - pointsDrawn)) ? (MAX_POINTS_TO_DRAW - pointsDrawn) : numImmature;
+            
+            for(size_t i = 0; i < maxImmature && pointsDrawn < MAX_POINTS_TO_DRAW; i++) {
+                ImmaturePoint* ip = image->immaturePoints[i];
+                if(ip == nullptr) continue;
+                try {
+                    float u_f = ip->u;
+                    float v_f = ip->v;
+                    int u = (int)(u_f + 0.5f);
+                    int v = (int)(v_f + 0.5f);
+                    if(u >= 0 && u < w && v >= 0 && v < h) {
+                        int idx = v * w + u;
+                        if(idx >= 0 && idx < w * h) {
+                            // Draw yellow point
+                            targetImg->data[idx][0] = 0;      // B
+                            targetImg->data[idx][1] = 255;   // G
+                            targetImg->data[idx][2] = 255;    // R
+                            pointsDrawn++;
+                        }
+                    }
+                } catch (...) {
+                    continue;
+                }
+            }
+            */
+            
+            *changedFlag = true;
         }
     } catch (...) {
         // Skip if copy fails

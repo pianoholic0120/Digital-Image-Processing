@@ -93,6 +93,19 @@ public:
 
 	// Get pipeline processed image (full processing: pipeline + undistortion + photometric calibration)
 	ImageAndExposure* getImagePipeline(int id);
+	
+	// Get original BGR frame from camera (for video recording)
+	// Returns empty Mat if not available
+	cv::Mat getOriginalBGRFrame();
+	
+	// Get camera FPS (for video recording)
+	double getFPS() const { return fps; }
+	
+	// Get camera resolution (for video recording)
+	cv::Size getResolution() const { return cv::Size(widthOrg, heightOrg); }
+	
+	// Check if reading from video file (public access for main)
+	bool isVideoFile;
 
 	inline float* getPhotometricGamma()
 	{
@@ -115,16 +128,18 @@ public:
 	int frameCount;
 	bool running;
 	bool hardwareControlEnabled;  // Whether hardware control succeeded
+	double fps;  // FPS for video recording
 
 private:
 	int cameraIndex;
 	std::string videoFile;  // Video file path (if using video input)
-	bool isVideoFile;       // True if reading from video file, false if from camera
 	std::string calibfile;
 	std::string gammaFile;
 	std::string vignetteFile;
 	cv::VideoCapture capture;
 	std::mutex captureMutex;  // Mutex for thread-safe camera/video access
+	cv::Mat lastCapturedFrame;  // Store last captured BGR frame for video recording
+	std::mutex lastFrameMutex;  // Mutex for lastCapturedFrame access
 
 	// Helper to capture frame from camera/video
 	cv::Mat captureFrame();

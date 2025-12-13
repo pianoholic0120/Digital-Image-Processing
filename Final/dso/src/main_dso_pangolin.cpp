@@ -952,6 +952,27 @@ int main( int argc, char** argv )
                 img_raw = cameraReaderPtr->getImageRaw(i);
                 img_pipeline = cameraReaderPtr->getImagePipeline(i);
                 
+                // Record original BGR frame for video export (camera mode only)
+                // Note: In dual mode, getImageRaw() and getImagePipeline() both call captureFrame(),
+                // so lastCapturedFrame will be updated twice. We record after both calls to get
+                // the frame that was captured (which will be from getImagePipeline, the last one).
+                // Both paths should use the same original frame, but due to timing they may differ.
+                // For video recording, we record the frame that was actually captured.
+                if(cameraReaderPtr != nullptr && !cameraReaderPtr->isVideoFile)
+                {
+                    cv::Mat originalFrame = cameraReaderPtr->getOriginalBGRFrame();
+                    if(!originalFrame.empty())
+                    {
+                        std::lock_guard<std::mutex> framesLock(framesMutex);
+                        capturedFrames.push_back(originalFrame.clone());
+                    }
+                    else
+                    {
+                        // Debug: check if lastCapturedFrame is empty
+                        printf("DEBUG: getOriginalBGRFrame() returned empty frame at iteration %d\n", i);
+                    }
+                }
+                
                 if(img_raw == nullptr || img_pipeline == nullptr)
                 {
                     printf("WARNING: Failed to get images for frame %d, skipping.\n", i);
@@ -973,6 +994,17 @@ int main( int argc, char** argv )
                     if(cameraReaderPtr != nullptr)
                     {
                         img = cameraReaderPtr->getImage(i);
+                        
+                        // Record original BGR frame for video export (camera mode only)
+                        if(!cameraReaderPtr->isVideoFile)
+                        {
+                            cv::Mat originalFrame = cameraReaderPtr->getOriginalBGRFrame();
+                            if(!originalFrame.empty())
+                            {
+                                std::lock_guard<std::mutex> framesLock(framesMutex);
+                                capturedFrames.push_back(originalFrame.clone());
+                            }
+                        }
                     }
                     else if(readerPtr != nullptr)
                     {
@@ -1017,6 +1049,21 @@ int main( int argc, char** argv )
 
             if(enableDualModeFlag && cameraReaderPtr != nullptr)
             {
+                // Check if we should stop before processing frames
+                if(stopProcessing || shouldExit)
+                {
+                    if(img_raw != nullptr) {
+                        try { delete img_raw; } catch(...) {}
+                        img_raw = nullptr;
+                    }
+                    if(img_pipeline != nullptr) {
+                        try { delete img_pipeline; } catch(...) {}
+                        img_pipeline = nullptr;
+                    }
+                    printf("Stop signal received in dual mode - exiting frame processing loop\n");
+                    break;
+                }
+                
                 // Dual mode: process both images
                 if(!skipFrame && img_raw != nullptr && img_pipeline != nullptr)
                 {
@@ -1660,7 +1707,10 @@ int main( int argc, char** argv )
                     shouldExit = true;
                     exportRequested = true;  // Set flag to trigger export
                     printf("\n>>> 'e' pressed! Stopping processing and saving files...\n");
-                    // Close viewer to exit GUI loop quickly (for camera mode)
+                    printf(">>> Setting stop flags - tracking thread will exit gracefully...\n");
+                    // Give tracking thread a moment to see the stop flag
+                    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+                    // Close viewer to exit GUI loop (for camera mode)
                     if(cameraReaderPtr != nullptr)
                     {
                         if(enableDualMode)
@@ -1727,17 +1777,26 @@ int main( int argc, char** argv )
             usleep(1000000);  // Wait 1 second to allow user to see the error
         }
 
-        // After GUI exits, check if tracking thread is still running
-        // If it crashed, we don't need to wait for it
+        // After GUI exits, wait for tracking thread to finish
+        // For camera mode with stopProcessing, give thread time to exit gracefully
         if(runthread.joinable())
         {
-            // Use detach instead of join to avoid blocking if thread crashed
-            // This allows program to exit gracefully even if thread is stuck
-            if(trackingThreadCrashed) {
+            if(stopProcessing || shouldExit) {
+                // User requested stop - give tracking thread a moment to exit gracefully
+                printf("Waiting for tracking thread to finish (stop requested)...\n");
+                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                if(runthread.joinable()) {
+                    // Thread should have exited by now, but if not, detach to continue
+                    printf("Tracking thread still running, detaching to continue export...\n");
+                    runthread.detach();
+                }
+            } else if(trackingThreadCrashed) {
+                // Thread crashed - detach immediately
                 printf("Tracking thread has crashed, detaching...\n");
                 runthread.detach();
             } else {
-                // Give thread a moment to finish, then detach if still running
+                // Normal case - wait for thread to finish
+                printf("Waiting for tracking thread to finish...\n");
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 if(runthread.joinable()) {
                     runthread.detach();
@@ -1790,9 +1849,26 @@ int main( int argc, char** argv )
         }
 
         // After GUI exits, wait for tracking thread to finish
+        // For camera mode with stopProcessing, give thread time to exit gracefully
         if(runthread.joinable())
         {
-            runthread.join();
+            if(stopProcessing || shouldExit) {
+                // User requested stop - give tracking thread a moment to exit gracefully
+                printf("Waiting for tracking thread to finish (stop requested)...\n");
+                std::this_thread::sleep_for(std::chrono::milliseconds(500));
+                if(runthread.joinable()) {
+                    // Thread should have exited by now, but if not, detach to continue
+                    printf("Tracking thread still running, detaching to continue export...\n");
+                    runthread.detach();
+                }
+            } else if(trackingThreadCrashed) {
+                // Thread crashed - detach immediately
+                printf("Tracking thread has crashed, detaching...\n");
+                runthread.detach();
+            } else {
+                // Normal case - wait for thread to finish
+                runthread.join();
+            }
         }
     }
     else
@@ -1817,6 +1893,36 @@ int main( int argc, char** argv )
 	printf("\n==================== EXPORTING DATA ====================\n");
 	printf("Saving point cloud, camera poses, and video...\n");
 	
+	// Get camera FPS for video export (if using camera)
+	double cameraFPS = 30.0;
+	if(cameraReaderPtr != nullptr && !cameraReaderPtr->isVideoFile)
+	{
+		cameraFPS = cameraReaderPtr->getFPS();
+		printf("Using camera FPS: %.2f for video export\n", cameraFPS);
+	}
+	
+	// Save complete recorded video if in camera mode
+	if(cameraReaderPtr != nullptr && !cameraReaderPtr->isVideoFile)
+	{
+		std::lock_guard<std::mutex> framesLock(framesMutex);
+		if(!capturedFrames.empty())
+		{
+			printf("\nSaving complete recorded video from camera...\n");
+			std::string videoOutputPath = "dso_output/recorded_camera_video.mp4";
+			try {
+				IOWrap::DataExporter::exportVideo(capturedFrames, videoOutputPath, cameraFPS);
+				printf("Complete camera video saved to: %s (%zu frames, %.2f fps)\n", 
+				       videoOutputPath.c_str(), capturedFrames.size(), cameraFPS);
+			} catch(const std::exception& e) {
+				printf("ERROR: Exception saving camera video: %s\n", e.what());
+			} catch(...) {
+				printf("ERROR: Unknown exception saving camera video\n");
+			}
+		} else {
+			printf("WARNING: No frames were recorded for video export\n");
+		}
+	}
+	
 	{
 		std::lock_guard<std::mutex> lock(fullSystemMutex);
 		if(enableDualMode && fullSystem_raw != nullptr && fullSystem_pipeline != nullptr)
@@ -1833,9 +1939,9 @@ int main( int argc, char** argv )
 				printf("Exporting raw reconstruction to: %s\n", outputDirRaw.c_str());
 				if(fullSystem_raw != nullptr) {
 					if(dualViewer != nullptr) {
-						IOWrap::DataExporter::exportAllDual(fullSystem_raw, dualViewer, capturedFrames, outputDirRaw, 30.0, true);
+						IOWrap::DataExporter::exportAllDual(fullSystem_raw, dualViewer, capturedFrames, outputDirRaw, cameraFPS, true);
 					} else {
-						IOWrap::DataExporter::exportAll(fullSystem_raw, nullptr, capturedFrames, outputDirRaw, 30.0);
+						IOWrap::DataExporter::exportAll(fullSystem_raw, nullptr, capturedFrames, outputDirRaw, cameraFPS);
 					}
 					printf("Raw reconstruction export completed successfully!\n");
 					
@@ -1860,9 +1966,9 @@ int main( int argc, char** argv )
 				printf("Exporting pipeline reconstruction to: %s\n", outputDirPipeline.c_str());
 				if(fullSystem_pipeline != nullptr) {
 					if(dualViewer != nullptr) {
-						IOWrap::DataExporter::exportAllDual(fullSystem_pipeline, dualViewer, capturedFrames, outputDirPipeline, 30.0, false);
+						IOWrap::DataExporter::exportAllDual(fullSystem_pipeline, dualViewer, capturedFrames, outputDirPipeline, cameraFPS, false);
 					} else {
-						IOWrap::DataExporter::exportAll(fullSystem_pipeline, nullptr, capturedFrames, outputDirPipeline, 30.0);
+						IOWrap::DataExporter::exportAll(fullSystem_pipeline, nullptr, capturedFrames, outputDirPipeline, cameraFPS);
 					}
 					printf("Pipeline reconstruction export completed successfully!\n");
 					
@@ -1892,7 +1998,7 @@ int main( int argc, char** argv )
 					printf("WARNING: System crashed, but exporting available data...\n");
 				}
 				printf("Exporting reconstruction to: %s\n", outputDir.c_str());
-				IOWrap::DataExporter::exportAll(fullSystem, viewer, capturedFrames, outputDir, 30.0);
+				IOWrap::DataExporter::exportAll(fullSystem, viewer, capturedFrames, outputDir, cameraFPS);
 				printf("Reconstruction export completed successfully!\n");
 				
 				// Export quantitative metrics
@@ -1962,55 +2068,46 @@ int main( int argc, char** argv )
 		std::lock_guard<std::mutex> lock(fullSystemMutex);
 		if(enableDualMode)
 		{
-			// Calculate detailed metrics for raw (even if crashed)
-			if(!rawSystemCrashed || exportRequested) {
-				try {
-					printf("Calculating detailed metrics for raw reconstruction...\n");
-					std::string outputDirRaw = "dso_output/raw";
-					std::string metricsFileRaw = outputDirRaw + "/quantitative_metrics.txt";
-					IOWrap::DataExporter::calculateAndUpdateMetricsFromFiles(outputDirRaw, metricsFileRaw, true);
-				} catch(const std::exception& e) {
-					printf("ERROR: Exception calculating detailed metrics for raw: %s\n", e.what());
-				} catch(...) {
-					printf("ERROR: Unknown exception calculating detailed metrics for raw\n");
-				}
-			} else {
-				printf("Skipping raw metrics calculation (system crashed and no export requested)\n");
-			}
+		// Calculate detailed metrics for raw (even if crashed)
+		// Always calculate metrics to save what we have, since export happens automatically
+		try {
+			printf("Calculating detailed metrics for raw reconstruction...\n");
+			std::string outputDirRaw = "dso_output/raw";
+			std::string metricsFileRaw = outputDirRaw + "/quantitative_metrics.txt";
+			IOWrap::DataExporter::calculateAndUpdateMetricsFromFiles(outputDirRaw, metricsFileRaw, true);
+		} catch(const std::exception& e) {
+			printf("ERROR: Exception calculating detailed metrics for raw: %s\n", e.what());
+		} catch(...) {
+			printf("ERROR: Unknown exception calculating detailed metrics for raw\n");
+		}
 			
-			// Calculate detailed metrics for pipeline (even if crashed)
-			if(!pipelineSystemCrashed || exportRequested) {
-				try {
-					printf("Calculating detailed metrics for pipeline reconstruction...\n");
-					std::string outputDirPipeline = "dso_output/pipeline";
-					std::string metricsFilePipeline = outputDirPipeline + "/quantitative_metrics.txt";
-					IOWrap::DataExporter::calculateAndUpdateMetricsFromFiles(outputDirPipeline, metricsFilePipeline, false);
-				} catch(const std::exception& e) {
-					printf("ERROR: Exception calculating detailed metrics for pipeline: %s\n", e.what());
-				} catch(...) {
-					printf("ERROR: Unknown exception calculating detailed metrics for pipeline\n");
-				}
-			} else {
-				printf("Skipping pipeline metrics calculation (system crashed and no export requested)\n");
-			}
+		// Calculate detailed metrics for pipeline (even if crashed)
+		// Always calculate metrics to save what we have, since export happens automatically
+		try {
+			printf("Calculating detailed metrics for pipeline reconstruction...\n");
+			std::string outputDirPipeline = "dso_output/pipeline";
+			std::string metricsFilePipeline = outputDirPipeline + "/quantitative_metrics.txt";
+			IOWrap::DataExporter::calculateAndUpdateMetricsFromFiles(outputDirPipeline, metricsFilePipeline, false);
+		} catch(const std::exception& e) {
+			printf("ERROR: Exception calculating detailed metrics for pipeline: %s\n", e.what());
+		} catch(...) {
+			printf("ERROR: Unknown exception calculating detailed metrics for pipeline\n");
+		}
 		}
 		else if(fullSystem != nullptr)
 		{
-			// Single mode: calculate detailed metrics (even if crashed)
-			if(!trackingThreadCrashed || exportRequested) {
-				try {
-					printf("Calculating detailed metrics...\n");
-					std::string outputDir = "dso_output";
-					std::string metricsFile = outputDir + "/quantitative_metrics.txt";
-					IOWrap::DataExporter::calculateAndUpdateMetricsFromFiles(outputDir, metricsFile, false);
-				} catch(const std::exception& e) {
-					printf("ERROR: Exception calculating detailed metrics: %s\n", e.what());
-				} catch(...) {
-					printf("ERROR: Unknown exception calculating detailed metrics\n");
-				}
-			} else {
-				printf("Skipping metrics calculation (system crashed and no export requested)\n");
-			}
+		// Single mode: calculate detailed metrics (even if crashed)
+		// Always calculate metrics to save what we have, since export happens automatically
+		try {
+			printf("Calculating detailed metrics...\n");
+			std::string outputDir = "dso_output";
+			std::string metricsFile = outputDir + "/quantitative_metrics.txt";
+			IOWrap::DataExporter::calculateAndUpdateMetricsFromFiles(outputDir, metricsFile, false);
+		} catch(const std::exception& e) {
+			printf("ERROR: Exception calculating detailed metrics: %s\n", e.what());
+		} catch(...) {
+			printf("ERROR: Unknown exception calculating detailed metrics\n");
+		}
 		}
 	}
 	printf("=======================================================\n\n");

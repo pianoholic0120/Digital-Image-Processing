@@ -840,12 +840,25 @@ void DataExporter::calculateAndUpdateMetricsFromFiles(const std::string& outputD
     if(positions.size() >= 2)
     {
         // Calculate cumulative drift as sum of deviations from average velocity
-        double avgVelocity = totalTrajectoryLength / (timestamps.empty() ? positions.size() : (timestamps.back() - timestamps[0]));
+        // Guard against division by zero when timestamps are equal
+        double timeSpan = timestamps.empty() ? positions.size() : (timestamps.back() - timestamps[0]);
+        double avgVelocity = 0.0;
+        if(timeSpan > 0.0)
+        {
+            avgVelocity = totalTrajectoryLength / timeSpan;
+        }
+        else
+        {
+            // Fallback: use frame count if timestamps are invalid
+            avgVelocity = totalTrajectoryLength / positions.size();
+        }
+        
         double cumulativeDrift = 0.0;
         for(size_t i = 1; i < positions.size(); i++)
         {
             double dt = (timestamps.size() == positions.size() && i < timestamps.size()) ? 
                        (timestamps[i] - timestamps[i-1]) : 1.0;
+            if(dt <= 0.0) dt = 1.0;  // Guard against invalid time intervals
             double expectedDist = avgVelocity * dt;
             double actualDist = (positions[i] - positions[i-1]).norm();
             cumulativeDrift += std::abs(actualDist - expectedDist);
