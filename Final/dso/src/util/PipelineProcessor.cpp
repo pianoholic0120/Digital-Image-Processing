@@ -100,12 +100,9 @@ cv::Mat PipelineProcessor::processFrame(const cv::Mat& frame_bgr)
     // 7. Bilateral filter (edge-preserving denoising, replaces Gaussian blur)
     cv::Mat denoised = applyBilateralFilter(enhanced);
     
-    // 8. Convert back to BGR (for consistency)
-    cv::Mat result;
-    cv::cvtColor(denoised, result, cv::COLOR_GRAY2BGR);
-
+    // Return grayscale directly (no need to convert back to BGR since CameraReader will use grayscale anyway)
     frameCount++;
-    return result;
+    return denoised;
 }
 
 cv::Mat PipelineProcessor::applyExposureCompensation(const cv::Mat& frame_bgr)
