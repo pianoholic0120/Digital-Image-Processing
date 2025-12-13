@@ -786,6 +786,215 @@ void DataExporter::calculateAndUpdateMetricsFromFiles(const std::string& outputD
     // Calculate trajectory coverage (how much of the space is covered)
     double trajectoryCoverage = bboxVolume > 0 ? (totalTrajectoryLength / (bboxSize.norm() + 1e-6)) : 0.0;
     
+    // Additional SLAM-specific metrics
+    // 1. Scale drift estimation (if we have timestamps)
+    double scaleDrift = 0.0;
+    std::vector<double> scaleFactors;
+    if(positions.size() >= 2 && timestamps.size() == positions.size())
+    {
+        // Calculate scale factors between consecutive frames
+        for(size_t i = 1; i < positions.size(); i++)
+        {
+            double dt = timestamps[i] - timestamps[i-1];
+            if(dt > 0)
+            {
+                double transNorm = (positions[i] - positions[i-1]).norm();
+                double velocity = transNorm / dt;
+                scaleFactors.push_back(velocity);
+            }
+        }
+        // Calculate scale drift as variance of scale factors
+        if(scaleFactors.size() >= 2)
+        {
+            double avgScale = 0.0;
+            for(double s : scaleFactors) avgScale += s;
+            avgScale /= scaleFactors.size();
+            double sumVar = 0.0;
+            for(double s : scaleFactors)
+            {
+                double diff = s - avgScale;
+                sumVar += diff * diff;
+            }
+            scaleDrift = sqrt(sumVar / scaleFactors.size());
+        }
+    }
+    
+    // 2. Loop closure detection (simplified - check if trajectory returns close to start)
+    bool hasLoopClosure = false;
+    double loopClosureDistance = 0.0;
+    if(positions.size() >= 10)
+    {
+        Eigen::Vector3d startPos = positions[0];
+        Eigen::Vector3d endPos = positions.back();
+        double distanceToStart = (endPos - startPos).norm();
+        // Consider loop closure if end is within 10% of trajectory length from start
+        if(distanceToStart < totalTrajectoryLength * 0.1 && totalTrajectoryLength > 0)
+        {
+            hasLoopClosure = true;
+            loopClosureDistance = distanceToStart;
+        }
+    }
+    
+    // 3. Trajectory drift (accumulated error estimation)
+    double trajectoryDrift = 0.0;
+    if(positions.size() >= 2)
+    {
+        // Calculate cumulative drift as sum of deviations from average velocity
+        double avgVelocity = totalTrajectoryLength / (timestamps.empty() ? positions.size() : (timestamps.back() - timestamps[0]));
+        double cumulativeDrift = 0.0;
+        for(size_t i = 1; i < positions.size(); i++)
+        {
+            double dt = (timestamps.size() == positions.size() && i < timestamps.size()) ? 
+                       (timestamps[i] - timestamps[i-1]) : 1.0;
+            double expectedDist = avgVelocity * dt;
+            double actualDist = (positions[i] - positions[i-1]).norm();
+            cumulativeDrift += std::abs(actualDist - expectedDist);
+        }
+        trajectoryDrift = cumulativeDrift / (positions.size() - 1);
+    }
+    
+    // 4. Point cloud quality metrics
+    double pointCloudCompleteness = 0.0;
+    double pointCloudUniformity = 0.0;
+    if(!pointPositions.empty() && positions.size() > 0)
+    {
+        // Completeness: ratio of points to expected points (based on trajectory length)
+        // Expected: roughly 1000 points per meter of trajectory
+        double expectedPoints = totalTrajectoryLength * 1000.0;
+        pointCloudCompleteness = expectedPoints > 0 ? std::min(1.0, numPoints / expectedPoints) : 0.0;
+        
+        // Uniformity: measure of how evenly distributed points are
+        // Calculate using nearest neighbor distances
+        if(pointPositions.size() >= 100)
+        {
+            std::vector<double> nearestDistances;
+            size_t sampleSize = std::min(pointPositions.size(), (size_t)10000);
+            for(size_t i = 0; i < sampleSize; i += 100)
+            {
+                double minDist = std::numeric_limits<double>::max();
+                for(size_t j = 0; j < pointPositions.size(); j++)
+                {
+                    if(i == j) continue;
+                    double dist = (pointPositions[i] - pointPositions[j]).norm();
+                    if(dist < minDist) minDist = dist;
+                }
+                if(minDist < std::numeric_limits<double>::max())
+                {
+                    nearestDistances.push_back(minDist);
+                }
+            }
+            if(!nearestDistances.empty())
+            {
+                double avgDist = 0.0;
+                for(double d : nearestDistances) avgDist += d;
+                avgDist /= nearestDistances.size();
+                double sumVar = 0.0;
+                for(double d : nearestDistances)
+                {
+                    double diff = d - avgDist;
+                    sumVar += diff * diff;
+                }
+                double variance = sumVar / nearestDistances.size();
+                // Uniformity: inverse of coefficient of variation
+                pointCloudUniformity = avgDist > 0 ? (1.0 / (1.0 + sqrt(variance) / avgDist)) : 0.0;
+            }
+        }
+    }
+    
+    // 5. Trajectory accuracy metrics (relative pose error estimation)
+    double relativePoseError = 0.0;
+    double absoluteTrajectoryError = 0.0;
+    if(positions.size() >= 2)
+    {
+        // Relative Pose Error (RPE): error in relative transformation
+        std::vector<double> rpeValues;
+        for(size_t i = 1; i < positions.size(); i++)
+        {
+            // Calculate expected vs actual relative transformation
+            Eigen::Vector3d expectedTrans = positions[i] - positions[i-1];
+            // For RPE, we compare with smoothed trajectory (moving average)
+            if(i >= 2)
+            {
+                Eigen::Vector3d smoothedTrans = (positions[i] - positions[i-2]) / 2.0;
+                double error = (expectedTrans - smoothedTrans).norm();
+                rpeValues.push_back(error);
+            }
+        }
+        if(!rpeValues.empty())
+        {
+            for(double e : rpeValues) relativePoseError += e;
+            relativePoseError /= rpeValues.size();
+        }
+        
+        // Absolute Trajectory Error (ATE): error from start position
+        if(positions.size() > 1)
+        {
+            Eigen::Vector3d startPos = positions[0];
+            double totalATE = 0.0;
+            for(size_t i = 1; i < positions.size(); i++)
+            {
+                // Expected position based on cumulative translation
+                Eigen::Vector3d expectedPos = startPos;
+                for(size_t j = 1; j <= i; j++)
+                {
+                    expectedPos += (positions[j] - positions[j-1]);
+                }
+                double error = (positions[i] - expectedPos).norm();
+                totalATE += error;
+            }
+            absoluteTrajectoryError = totalATE / (positions.size() - 1);
+        }
+    }
+    
+    // 6. Map quality: point cloud coverage relative to trajectory
+    double mapCoverageRatio = 0.0;
+    if(pointCloudVolume > 0 && bboxVolume > 0)
+    {
+        mapCoverageRatio = pointCloudVolume / bboxVolume;
+    }
+    
+    // 7. Tracking robustness: measure of how stable tracking is
+    double trackingRobustness = 0.0;
+    if(translationMagnitudes.size() >= 2)
+    {
+        // Robustness: inverse of coefficient of variation of translation magnitudes
+        double avg = avgTranslation;
+        double sumVar = 0.0;
+        for(double mag : translationMagnitudes)
+        {
+            double diff = mag - avg;
+            sumVar += diff * diff;
+        }
+        double stdDev = sqrt(sumVar / translationMagnitudes.size());
+        trackingRobustness = avg > 0 ? (1.0 / (1.0 + stdDev / avg)) : 0.0;
+    }
+    
+    // 8. Temporal consistency: how consistent the trajectory is over time
+    double temporalConsistency = 0.0;
+    if(timestamps.size() == positions.size() && positions.size() >= 3)
+    {
+        std::vector<double> timeIntervals;
+        for(size_t i = 1; i < timestamps.size(); i++)
+        {
+            timeIntervals.push_back(timestamps[i] - timestamps[i-1]);
+        }
+        if(!timeIntervals.empty())
+        {
+            double avgInterval = 0.0;
+            for(double dt : timeIntervals) avgInterval += dt;
+            avgInterval /= timeIntervals.size();
+            double sumVar = 0.0;
+            for(double dt : timeIntervals)
+            {
+                double diff = dt - avgInterval;
+                sumVar += diff * diff;
+            }
+            double variance = sumVar / timeIntervals.size();
+            // Consistency: inverse of coefficient of variation
+            temporalConsistency = avgInterval > 0 ? (1.0 / (1.0 + sqrt(variance) / avgInterval)) : 0.0;
+        }
+    }
+    
     // Now update the metrics file with calculated values
     std::ofstream outFile(metricsFile);
     if(!outFile.is_open())
@@ -829,6 +1038,20 @@ void DataExporter::calculateAndUpdateMetricsFromFiles(const std::string& outputD
                 outFile << "Average Acceleration: " << avgAcceleration << " m/s^2\n";
                 outFile << "Average Angular Velocity: " << avgAngularVelocity << " rad/s\n";
                 outFile << "Trajectory Coverage Ratio: " << trajectoryCoverage << " (length/bbox_diagonal)\n";
+                outFile << "Scale Drift: " << scaleDrift << " m/s (lower is better)\n";
+                outFile << "Trajectory Drift: " << trajectoryDrift << " meters (lower is better)\n";
+                outFile << "Relative Pose Error (RPE): " << relativePoseError << " meters (lower is better)\n";
+                outFile << "Absolute Trajectory Error (ATE): " << absoluteTrajectoryError << " meters (lower is better)\n";
+                outFile << "Tracking Robustness: " << trackingRobustness << " (higher is better, range 0-1)\n";
+                outFile << "Temporal Consistency: " << temporalConsistency << " (higher is better, range 0-1)\n";
+                if(hasLoopClosure)
+                {
+                    outFile << "Loop Closure Detected: YES (distance to start: " << loopClosureDistance << " meters)\n";
+                }
+                else
+                {
+                    outFile << "Loop Closure Detected: NO\n";
+                }
                 outFile << "Trajectory Bounding Box:\n";
                 outFile << "  Min: (" << minPos.x() << ", " << minPos.y() << ", " << minPos.z() << ")\n";
                 outFile << "  Max: (" << maxPos.x() << ", " << maxPos.y() << ", " << maxPos.z() << ")\n";
@@ -864,6 +1087,9 @@ void DataExporter::calculateAndUpdateMetricsFromFiles(const std::string& outputD
             outFile << "  Density: " << pointCloudDensity << " points per cubic meter\n";
             outFile << "  Spread (Std Dev): X=" << stdDevX << ", Y=" << stdDevY << ", Z=" << stdDevZ << " meters\n";
             outFile << "  Average Distance from Origin: " << avgDistFromOrigin << " meters\n";
+            outFile << "  Completeness: " << pointCloudCompleteness << " (higher is better, range 0-1)\n";
+            outFile << "  Uniformity: " << pointCloudUniformity << " (higher is better, range 0-1)\n";
+            outFile << "  Map Coverage Ratio: " << mapCoverageRatio << " (point_cloud_volume / trajectory_bbox_volume)\n";
             outFile << "Trajectory Consistency Score: " << (validPairs > 0 ? (1.0 / (1.0 + sqrt(translationVariance))) : 0.0) << " (higher is better, range 0-1)\n";
             outFile << "Note: Lower translation variance indicates better trajectory consistency\n";
             continue;
@@ -917,6 +1143,20 @@ void DataExporter::calculateAndUpdateMetricsFromFiles(const std::string& outputD
             outFile << "Average Acceleration: " << avgAcceleration << " m/s^2\n";
             outFile << "Average Angular Velocity: " << avgAngularVelocity << " rad/s\n";
             outFile << "Trajectory Coverage Ratio: " << trajectoryCoverage << " (length/bbox_diagonal)\n";
+            outFile << "Scale Drift: " << scaleDrift << " m/s (lower is better)\n";
+            outFile << "Trajectory Drift: " << trajectoryDrift << " meters (lower is better)\n";
+            outFile << "Relative Pose Error (RPE): " << relativePoseError << " meters (lower is better)\n";
+            outFile << "Absolute Trajectory Error (ATE): " << absoluteTrajectoryError << " meters (lower is better)\n";
+            outFile << "Tracking Robustness: " << trackingRobustness << " (higher is better, range 0-1)\n";
+            outFile << "Temporal Consistency: " << temporalConsistency << " (higher is better, range 0-1)\n";
+            if(hasLoopClosure)
+            {
+                outFile << "Loop Closure Detected: YES (distance to start: " << loopClosureDistance << " meters)\n";
+            }
+            else
+            {
+                outFile << "Loop Closure Detected: NO\n";
+            }
             outFile << "Trajectory Bounding Box:\n";
             outFile << "  Min: (" << minPos.x() << ", " << minPos.y() << ", " << minPos.z() << ")\n";
             outFile << "  Max: (" << maxPos.x() << ", " << maxPos.y() << ", " << maxPos.z() << ")\n";
@@ -946,6 +1186,9 @@ void DataExporter::calculateAndUpdateMetricsFromFiles(const std::string& outputD
         outFile << "  Density: " << pointCloudDensity << " points per cubic meter\n";
         outFile << "  Spread (Std Dev): X=" << stdDevX << ", Y=" << stdDevY << ", Z=" << stdDevZ << " meters\n";
         outFile << "  Average Distance from Origin: " << avgDistFromOrigin << " meters\n";
+        outFile << "  Completeness: " << pointCloudCompleteness << " (higher is better, range 0-1)\n";
+        outFile << "  Uniformity: " << pointCloudUniformity << " (higher is better, range 0-1)\n";
+        outFile << "  Map Coverage Ratio: " << mapCoverageRatio << " (point_cloud_volume / trajectory_bbox_volume)\n";
         outFile << "Trajectory Consistency Score: " << (validPairs > 0 ? (1.0 / (1.0 + sqrt(translationVariance))) : 0.0) << " (higher is better, range 0-1)\n";
         outFile << "Note: Lower translation variance indicates better trajectory consistency\n";
     }

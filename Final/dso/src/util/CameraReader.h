@@ -28,10 +28,10 @@ class CameraReader
 {
 public:
 	// Constructor for camera input
-	CameraReader(int cameraIndex, std::string calibFile, std::string gammaFile, std::string vignetteFile, bool enableDualMode = false, bool enableCLAHE = false);
+	CameraReader(int cameraIndex, std::string calibFile, std::string gammaFile, std::string vignetteFile, bool enableDualMode = false, bool enableCLAHE = false, bool configureCamera = true, double fixedExposureUs = -1);
 	
 	// Constructor for video file input
-	CameraReader(std::string videoFile, std::string calibFile, std::string gammaFile, std::string vignetteFile, bool enableDualMode = false, bool enableCLAHE = false);
+	CameraReader(std::string videoFile, std::string calibFile, std::string gammaFile, std::string vignetteFile, bool enableDualMode = false, bool enableCLAHE = false, bool configureCamera = true, double fixedExposureUs = -1);
 	
 	~CameraReader();
 
@@ -100,6 +100,12 @@ public:
 		return undistort->photometricUndist->getG();
 	}
 
+	// Camera hardware control methods
+	bool configureCameraForDSO();  // Configure camera for DSO (returns success status)
+	void setExposureTime(double exposureUs);  // Set fixed exposure time (microseconds)
+	void setGain(double gain);  // Set fixed gain/ISO
+	bool verifyCameraSettings();  // Verify hardware control settings
+
 	Undistort* undistort;
 	Undistort* undistort_pipeline;  // For pipeline path (with undistortion)
 	PipelineProcessor* pipelineProcessor;
@@ -108,6 +114,7 @@ public:
 	int widthOrg, heightOrg;
 	int frameCount;
 	bool running;
+	bool hardwareControlEnabled;  // Whether hardware control succeeded
 
 private:
 	int cameraIndex;

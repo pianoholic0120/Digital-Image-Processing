@@ -10,25 +10,43 @@
 #include <vector>
 #include <deque>
 
-PipelineProcessor::PipelineProcessor(bool enableCLAHE, float gradientStrength)
+PipelineProcessor::PipelineProcessor(bool enableCLAHE, 
+                                     float gradientStrength,
+                                     float gamma,
+                                     bool useFixedGain,
+                                     bool enableConservativeAE,
+                                     bool enableMildLogIntensity)
     : claheEnabled(enableCLAHE)
     , gradientStrength(std::max(0.0f, std::min(0.3f, gradientStrength)))
+    , gamma(gamma)
+    , useFixedGain(useFixedGain)
+    , enableConservativeAE(enableConservativeAE)
+    , fixedGainValue(-1.0f)  // Will be computed from first frame(s)
+    , enableMildLogIntensity(enableMildLogIntensity)
     , refMeanLuma(-1.0f)
     , currentGain(1.0f)
     , targetGain(1.0f)
-    , exposureSmoothAlpha(0.05f)  // Conservative adaptation rate
-    , minGain(0.8f)
-    , maxGain(1.2f)
+    , exposureSmoothAlpha(enableConservativeAE ? 0.005f : 0.05f)  // Very conservative if enabled
+    , minGain(enableConservativeAE ? 0.95f : 0.8f)  // Narrower range for conservative AE
+    , maxGain(enableConservativeAE ? 1.05f : 1.2f)
     , historyLength(15)
     , frameCount(0)
     , sceneStableFrames(0)
-    , motionFreezeThreshold(0.3f)
+    , motionFreezeThreshold(0.3f)  // float, not int
 {
     // Initialize CLAHE if enabled
     if(claheEnabled)
     {
         clahe = cv::createCLAHE(2.0, cv::Size(8, 8));  // Clip limit 2.0, tile size 8x8
     }
+    
+    printf("PipelineProcessor initialized:\n");
+    printf("  CLAHE: %s\n", claheEnabled ? "ENABLED" : "DISABLED");
+    printf("  Gradient Strength: %.2f\n", gradientStrength);
+    printf("  Gamma: %.2f\n", gamma);
+    printf("  Fixed Gain Mode: %s\n", useFixedGain ? "ENABLED" : "DISABLED");
+    printf("  Conservative AE: %s\n", enableConservativeAE ? "ENABLED" : "DISABLED");
+    printf("  Mild Log Intensity: %s\n", enableMildLogIntensity ? "ENABLED (experimental)" : "DISABLED");
 }
 
 PipelineProcessor::~PipelineProcessor()
@@ -45,26 +63,44 @@ cv::Mat PipelineProcessor::processFrame(const cv::Mat& frame_bgr)
         return frame_bgr;
     }
 
-    // 1. Exposure Compensation
-    cv::Mat exposed = applyExposureCompensation(frame_bgr);
-
-    // 2. Convert to grayscale (for subsequent processing)
+    // Mode B (Photometric-stable) processing order:
+    // 1. Gamma correction/linearization
+    cv::Mat linearized = linearizeImage(frame_bgr);
+    
+    // 2. Fixed gain exposure compensation
+    cv::Mat exposed = applyExposureCompensation(linearized);
+    
+    // 3. Convert to grayscale (BT.709)
     cv::Mat gray = toGrayscaleBT709(exposed);
-
-    // 3. Gradient Enhancement (fixed step)
-    cv::Mat enhanced = enhanceGradients(gray, gradientStrength);
-
-    // 4. CLAHE (optional)
+    
+    // 4. Optional: Mild log intensity (experimental, Mode C only)
+    cv::Mat processed = gray;
+    if(enableMildLogIntensity)
+    {
+        processed = applyMildLogIntensity(gray);
+    }
+    else
+    {
+        processed = gray;
+    }
+    
+    // 5. Optional: Gradient enhancement (Mode C only, disabled by default)
+    cv::Mat enhanced = processed;
+    if(gradientStrength > 0.0f)
+    {
+        enhanced = enhanceGradients(processed, gradientStrength);
+    }
+    
+    // 6. Optional: CLAHE (Mode C only, disabled by default)
     if(claheEnabled && clahe)
     {
         clahe->apply(enhanced, enhanced);
     }
-
-    // 5. Light denoising
-    cv::Mat denoised;
-    cv::GaussianBlur(enhanced, denoised, cv::Size(3, 3), 0);
-
-    // 6. Convert back to BGR (for consistency, though we could return grayscale)
+    
+    // 7. Bilateral filter (edge-preserving denoising, replaces Gaussian blur)
+    cv::Mat denoised = applyBilateralFilter(enhanced);
+    
+    // 8. Convert back to BGR (for consistency)
     cv::Mat result;
     cv::cvtColor(denoised, result, cv::COLOR_GRAY2BGR);
 
@@ -151,10 +187,43 @@ cv::Mat PipelineProcessor::applyExposureCompensation(const cv::Mat& frame_bgr)
     }
     currentGain = gain;
 
-    // Early exit if no correction needed
-    if(std::abs(gain - 1.0f) < 0.02f)
+    // Fixed gain mode: compute gain from first frame(s) and use it for all frames
+    if(useFixedGain)
     {
-        return frame_bgr;
+        if(fixedGainValue < 0.0f)
+        {
+            // Compute fixed gain from first frame or first N frames
+            fixedGainValue = computeFixedGain(gray);
+            printf("Fixed gain computed: %.4f (will be used for all frames)\n", fixedGainValue);
+        }
+        
+        // Use fixed gain for all frames
+        gain = fixedGainValue;
+        
+        // Early exit if gain is close to 1.0
+        if(std::abs(gain - 1.0f) < 0.02f)
+        {
+            return frame_bgr;
+        }
+    }
+    else if(enableConservativeAE)
+    {
+        // Very conservative AE mode: gain range 0.95-1.05, very slow adaptation
+        // Gain is already computed above with conservative limits
+        // Early exit if no correction needed
+        if(std::abs(gain - 1.0f) < 0.02f)
+        {
+            return frame_bgr;
+        }
+    }
+    else
+    {
+        // Dynamic AE mode (original behavior, not recommended for DSO)
+        // Early exit if no correction needed
+        if(std::abs(gain - 1.0f) < 0.02f)
+        {
+            return frame_bgr;
+        }
     }
 
     // Apply global gain
@@ -168,6 +237,12 @@ cv::Mat PipelineProcessor::applyExposureCompensation(const cv::Mat& frame_bgr)
 
 cv::Mat PipelineProcessor::enhanceGradients(const cv::Mat& gray, float strength)
 {
+    // Only enhance if strength > 0 (disabled by default for DSO)
+    if(strength <= 0.0f)
+    {
+        return gray.clone();
+    }
+    
     cv::Mat blurred, sharpened;
     cv::GaussianBlur(gray, blurred, cv::Size(3, 3), 0);
     cv::addWeighted(gray, 1.0f + strength, blurred, -strength, 0, sharpened);
@@ -372,10 +447,102 @@ void PipelineProcessor::reset()
     refMeanLuma = -1.0f;
     currentGain = 1.0f;
     targetGain = 1.0f;
+    fixedGainValue = -1.0f;  // Reset fixed gain to recompute
     intensityHistory.clear();
     gainHistory.clear();
     histHistory.clear();
     frameCount = 0;
     sceneStableFrames = 0;
 }
+
+// Gamma correction/linearization: convert gamma-encoded image to linear space
+// If camera response calibration (pcalib) is available, it replaces the fixed gamma model.
+cv::Mat PipelineProcessor::linearizeImage(const cv::Mat& frame_bgr)
+{
+    if(frame_bgr.empty())
+    {
+        return frame_bgr;
+    }
+    
+    // Note: If pcalib is available, this step should be skipped or the pcalib
+    // response function should be used instead. The pcalib is typically applied
+    // in the photometric undistorter (Undistort class), so we use fixed gamma here
+    // as a fallback when pcalib is not available.
+    
+    cv::Mat result;
+    frame_bgr.convertTo(result, CV_32F, 1.0 / 255.0);  // Normalize to [0, 1]
+    
+    // Apply gamma correction: I_linear = I_raw^gamma
+    cv::pow(result, gamma, result);
+    
+    // Convert back to [0, 255]
+    result.convertTo(result, CV_8U, 255.0);
+    
+    return result;
+}
+
+// Bilateral filter: edge-preserving denoising (replaces Gaussian blur)
+cv::Mat PipelineProcessor::applyBilateralFilter(const cv::Mat& gray)
+{
+    if(gray.empty())
+    {
+        return gray;
+    }
+    
+    cv::Mat result;
+    // Parameters: d=5 (diameter), sigmaColor=20, sigmaSpace=20
+    // This preserves edges while reducing noise
+    cv::bilateralFilter(gray, result, 5, 20, 20);
+    
+    return result;
+}
+
+// Mild log intensity: experimental illumination normalization
+// WARNING: This is experimental and disabled by default. It may break brightness constancy.
+cv::Mat PipelineProcessor::applyMildLogIntensity(const cv::Mat& gray)
+{
+    if(gray.empty())
+    {
+        return gray;
+    }
+    
+    // Very mild log transformation to reduce extreme illumination variations
+    // I_log = log(1 + I) / log(256) * 255
+    cv::Mat result;
+    gray.convertTo(result, CV_32F);
+    cv::log(result + 1.0, result);
+    result = result / log(256.0) * 255.0;
+    result.convertTo(result, CV_8U);
+    
+    return result;
+}
+
+// Compute fixed gain from initial frame(s)
+float PipelineProcessor::computeFixedGain(const cv::Mat& gray)
+{
+    if(gray.empty())
+    {
+        return 1.0f;
+    }
+    
+    // Compute mean luma of the frame
+    float meanLuma = computeMeanLuma(gray);
+    
+    // Target intensity: 128 (middle of [0, 255])
+    float targetIntensity = 128.0f;
+    
+    // Compute gain to reach target intensity
+    if(meanLuma < 1e-3f)
+    {
+        return maxGain;  // Avoid division by zero
+    }
+    
+    float gain = targetIntensity / meanLuma;
+    
+    // Clamp to safe range
+    gain = std::max(minGain, std::min(maxGain, gain));
+    
+    return gain;
+}
+
 

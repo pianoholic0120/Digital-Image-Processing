@@ -10,7 +10,7 @@
 #include <algorithm>
 
 // Constructor implementation for camera input
-CameraReader::CameraReader(int cameraIndex, std::string calibFile, std::string gammaFile, std::string vignetteFile, bool enableDualMode, bool enableCLAHE)
+CameraReader::CameraReader(int cameraIndex, std::string calibFile, std::string gammaFile, std::string vignetteFile, bool enableDualMode, bool enableCLAHE, bool configureCamera, double fixedExposureUs)
 {
 	this->cameraIndex = cameraIndex;
 	this->videoFile = "";
@@ -19,6 +19,7 @@ CameraReader::CameraReader(int cameraIndex, std::string calibFile, std::string g
 	this->gammaFile = gammaFile;
 	this->vignetteFile = vignetteFile;
 	this->enableDualMode = enableDualMode;
+	this->hardwareControlEnabled = false;
 	
 	// Initialize camera
 	capture.open(cameraIndex);
@@ -35,6 +36,16 @@ CameraReader::CameraReader(int cameraIndex, std::string calibFile, std::string g
 	int camHeight = (int)capture.get(cv::CAP_PROP_FRAME_HEIGHT);
 	printf("Camera opened: resolution %d x %d\n", camWidth, camHeight);
 	
+	// Configure camera for DSO if requested
+	if(configureCamera)
+	{
+		hardwareControlEnabled = configureCameraForDSO();
+		if(fixedExposureUs > 0)
+		{
+			setExposureTime(fixedExposureUs);
+		}
+	}
+	
 	// Initialize calibration
 	initializeCalibration(camWidth, camHeight, enableDualMode, enableCLAHE);
 	
@@ -43,7 +54,7 @@ CameraReader::CameraReader(int cameraIndex, std::string calibFile, std::string g
 }
 
 // Constructor for video file input
-CameraReader::CameraReader(std::string videoFile, std::string calibFile, std::string gammaFile, std::string vignetteFile, bool enableDualMode, bool enableCLAHE)
+CameraReader::CameraReader(std::string videoFile, std::string calibFile, std::string gammaFile, std::string vignetteFile, bool enableDualMode, bool enableCLAHE, bool configureCamera, double fixedExposureUs)
 {
 	this->cameraIndex = -1;
 	this->videoFile = videoFile;
@@ -52,6 +63,7 @@ CameraReader::CameraReader(std::string videoFile, std::string calibFile, std::st
 	this->gammaFile = gammaFile;
 	this->vignetteFile = vignetteFile;
 	this->enableDualMode = enableDualMode;
+	this->hardwareControlEnabled = false;  // Video files cannot control hardware
 	
 	// Initialize video file
 	capture.open(videoFile);
@@ -96,7 +108,9 @@ void CameraReader::initializeCalibration(int camWidth, int camHeight, bool enabl
 	if(enableDualMode)
 	{
 		// Create pipeline processor
-		pipelineProcessor = new PipelineProcessor(enableCLAHE, 0.15f);
+		// Create pipeline processor with optimized defaults for DSO
+		// CLAHE disabled by default, gradient strength = 0.0 (disabled)
+		pipelineProcessor = new PipelineProcessor(enableCLAHE, 0.0f);
 		
 		// For raw path: create Undistort that only does photometric calibration (no geometric correction)
 		// We need to create a passthrough calibration file
@@ -601,6 +615,107 @@ ImageAndExposure* CameraReader::getImagePipeline(int id)
 		printf("ERROR: Unknown exception in getImagePipeline\n");
 		return nullptr;
 	}
+}
+
+// Configure camera for DSO: disable auto functions and set fixed parameters
+bool CameraReader::configureCameraForDSO()
+{
+	if(isVideoFile) 
+	{
+		printf("Video file input: hardware control not applicable\n");
+		return false;  // Video files cannot control hardware
+	}
+	
+	bool success = false;
+	
+	// Try to disable auto exposure
+	capture.set(cv::CAP_PROP_AUTO_EXPOSURE, 0.25);  // 0.25 = manual mode (V4L2)
+	double aeValue = capture.get(cv::CAP_PROP_AUTO_EXPOSURE);
+	bool aeDisabled = (std::abs(aeValue - 0.25) < 0.1);
+	
+	// Try to set fixed exposure time
+	capture.set(cv::CAP_PROP_EXPOSURE, -6);  // -6 = 1/64s (log scale)
+	double expValue = capture.get(cv::CAP_PROP_EXPOSURE);
+	bool expSet = (std::abs(expValue - (-6)) < 0.5);
+	
+	// Try to disable auto white balance
+	capture.set(cv::CAP_PROP_AUTO_WB, 0);
+	double wbValue = capture.get(cv::CAP_PROP_AUTO_WB);
+	bool wbDisabled = (wbValue < 0.1);
+	
+	// Try to disable auto focus (if supported)
+	capture.set(cv::CAP_PROP_AUTOFOCUS, 0);
+	
+	success = aeDisabled && expSet && wbDisabled;
+	
+	if(success) 
+	{
+		printf("Camera hardware control: SUCCESS\n");
+		printf("  Auto Exposure: DISABLED\n");
+		printf("  Auto White Balance: DISABLED\n");
+		printf("  Fixed Exposure: %.2f\n", expValue);
+	} 
+	else 
+	{
+		printf("Camera hardware control: FAILED (falling back to software compensation)\n");
+		printf("  Auto Exposure: %s\n", aeDisabled ? "DISABLED" : "FAILED");
+		printf("  Exposure Setting: %s (value=%.2f)\n", expSet ? "SET" : "FAILED", expValue);
+		printf("  Auto White Balance: %s\n", wbDisabled ? "DISABLED" : "FAILED");
+	}
+	
+	return success;
+}
+
+// Set fixed exposure time (microseconds)
+void CameraReader::setExposureTime(double exposureUs)
+{
+	if(isVideoFile) return;  // Video files cannot control hardware
+	
+	// Try to set exposure time
+	// Note: OpenCV uses log scale for some backends, absolute microseconds for others
+	capture.set(cv::CAP_PROP_EXPOSURE, exposureUs);
+	
+	// Verify
+	double actualValue = capture.get(cv::CAP_PROP_EXPOSURE);
+	printf("Set exposure time: requested=%.0f us, actual=%.2f\n", exposureUs, actualValue);
+}
+
+// Set fixed gain/ISO
+void CameraReader::setGain(double gain)
+{
+	if(isVideoFile) return;  // Video files cannot control hardware
+	
+	capture.set(cv::CAP_PROP_GAIN, gain);
+	
+	// Verify
+	double actualValue = capture.get(cv::CAP_PROP_GAIN);
+	printf("Set gain: requested=%.2f, actual=%.2f\n", gain, actualValue);
+}
+
+// Verify camera settings
+bool CameraReader::verifyCameraSettings()
+{
+	if(isVideoFile) return false;  // Video files cannot control hardware
+	
+	bool allGood = true;
+	
+	// Check auto exposure
+	double aeValue = capture.get(cv::CAP_PROP_AUTO_EXPOSURE);
+	if(std::abs(aeValue - 0.25) >= 0.1)
+	{
+		printf("WARNING: Auto Exposure verification failed (value=%.2f)\n", aeValue);
+		allGood = false;
+	}
+	
+	// Check auto white balance
+	double wbValue = capture.get(cv::CAP_PROP_AUTO_WB);
+	if(wbValue >= 0.1)
+	{
+		printf("WARNING: Auto White Balance verification failed (value=%.2f)\n", wbValue);
+		allGood = false;
+	}
+	
+	return allGood;
 }
 
 

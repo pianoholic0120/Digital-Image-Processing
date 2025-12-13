@@ -100,6 +100,12 @@ bool trackingThreadCrashed = false;
 std::string crashMessage = "";
 struct timeval tv_start_global;
 int frameIndex_global = 0;
+// Separate crash flags for dual mode
+bool rawSystemCrashed = false;
+bool pipelineSystemCrashed = false;
+std::string rawCrashMessage = "";
+std::string pipelineCrashMessage = "";
+std::atomic<bool> exportRequested(false);  // Flag to trigger export when 'e' is pressed
 
 void my_exit_handler(int s)
 {
@@ -877,12 +883,34 @@ int main( int argc, char** argv )
                 frameIndex_global = frameIndex;  // Update global counter
             }
             
-            // Check if we should exit (from signal handler)
-            if(shouldExit)
-            {
-                printf("Exit flag set - stopping frame processing but keeping GUI open...\n");
-                // Stop processing frames but keep GUI running
-                break;
+            // Check if we should exit (from signal handler) or if both systems crashed
+            if(enableDualMode) {
+                if(shouldExit || (rawSystemCrashed && pipelineSystemCrashed)) {
+                    if(shouldExit) {
+                        printf("Exit flag set - stopping frame processing but keeping GUI open...\n");
+                    } else {
+                        printf("Both systems crashed - stopping frame processing but keeping GUI open...\n");
+                        printf("Reconstruction has stopped. Pangolin viewer will remain open.\n");
+                        printf("Press 'e' to export current data and metrics\n");
+                    }
+                    // Stop processing frames but keep GUI running
+                    break;
+                } else if(rawSystemCrashed || pipelineSystemCrashed) {
+                    // One system crashed, but continue with the other
+                    // Don't break - continue processing
+                }
+            } else {
+                if(shouldExit || trackingThreadCrashed) {
+                    if(trackingThreadCrashed) {
+                        printf("Crash detected - stopping frame processing but keeping GUI open...\n");
+                        printf("Reconstruction has stopped. Pangolin viewer will remain open.\n");
+                        printf("Press 'e' to export current data and metrics\n");
+                    } else {
+                        printf("Exit flag set - stopping frame processing but keeping GUI open...\n");
+                    }
+                    // Stop processing frames but keep GUI running
+                    break;
+                }
             }
             
             // Check initialization status (with mutex protection)
@@ -1029,9 +1057,14 @@ int main( int argc, char** argv )
                         continue;
                     }
                     
-                    // Check if we should stop due to crash
-                    if(trackingThreadCrashed || shouldExit) {
-                        printf("Stopping frame processing due to crash flag\n");
+                    // Check if we should stop due to crash (both systems) or exit
+                    if((rawSystemCrashed && pipelineSystemCrashed) || shouldExit) {
+                        if(shouldExit) {
+                            printf("Exit requested - stopping frame processing\n");
+                        } else {
+                            printf("Both systems have crashed - stopping frame processing\n");
+                            printf("Reconstruction has stopped. Pangolin viewer will remain open for inspection.\n");
+                        }
                         if(img_raw != nullptr) {
                             try { delete img_raw; } catch(...) {}
                             img_raw = nullptr;
@@ -1042,11 +1075,25 @@ int main( int argc, char** argv )
                         }
                         break;  // Exit the loop, but keep thread alive
                     }
+                    // If only one system crashed, continue with the other
+                    if(rawSystemCrashed && !pipelineSystemCrashed) {
+                        // Skip raw processing, continue with pipeline
+                        if(img_raw != nullptr) {
+                            try { delete img_raw; } catch(...) {}
+                            img_raw = nullptr;
+                        }
+                    } else if(pipelineSystemCrashed && !rawSystemCrashed) {
+                        // Skip pipeline processing, continue with raw
+                        if(img_pipeline != nullptr) {
+                            try { delete img_pipeline; } catch(...) {}
+                            img_pipeline = nullptr;
+                        }
+                    }
                     
                     // Process raw path with comprehensive error handling
                     ImageAndExposure* processed_raw = nullptr;
                     try {
-                        if(fullSystem_raw != nullptr && !trackingThreadCrashed) {
+                        if(fullSystem_raw != nullptr && !rawSystemCrashed && !shouldExit) {
                             fullSystem_raw->addActiveFrame(img_raw, i);
                             processed_raw = img_raw;  // Mark as processed
                             img_raw = nullptr;  // Transfer ownership, don't delete
@@ -1056,33 +1103,48 @@ int main( int argc, char** argv )
                                 try { delete img_raw; } catch(...) {}
                                 img_raw = nullptr;
                             }
+                            // If raw crashed but pipeline is still running, continue with pipeline only
+                            if(rawSystemCrashed && !pipelineSystemCrashed) {
+                                // Continue processing pipeline path
+                            } else if(shouldExit) {
+                                // Exit requested, stop both
+                                break;
+                            }
                         }
                     } catch(const std::exception& e) {
                         printf("ERROR: Exception in addActiveFrame (raw): %s\n", e.what());
-                        trackingThreadCrashed = true;
-                        crashMessage = std::string("Exception in raw path: ") + e.what();
+                        rawSystemCrashed = true;
+                        rawCrashMessage = std::string("Exception in raw path: ") + e.what();
+                        printf("Raw system has crashed, but pipeline will continue if possible\n");
                         if(img_raw != nullptr) {
                             try { delete img_raw; } catch(...) {}
                             img_raw = nullptr;
                         }
-                        // Stop processing immediately on crash
-                        break;
+                        // Don't break - let pipeline continue if it's still working
+                        // Only break if both systems crashed or exit requested
+                        if(pipelineSystemCrashed || shouldExit) {
+                            break;
+                        }
                     } catch(...) {
                         printf("ERROR: Unknown exception in addActiveFrame (raw)\n");
-                        trackingThreadCrashed = true;
-                        crashMessage = "Unknown exception in raw path";
+                        rawSystemCrashed = true;
+                        rawCrashMessage = "Unknown exception in raw path";
+                        printf("Raw system has crashed, but pipeline will continue if possible\n");
                         if(img_raw != nullptr) {
                             try { delete img_raw; } catch(...) {}
                             img_raw = nullptr;
                         }
-                        // Stop processing immediately on crash
-                        break;
+                        // Don't break - let pipeline continue if it's still working
+                        // Only break if both systems crashed or exit requested
+                        if(pipelineSystemCrashed || shouldExit) {
+                            break;
+                        }
                     }
                     
                     // Process pipeline path with comprehensive error handling
                     ImageAndExposure* processed_pipeline = nullptr;
                     try {
-                        if(fullSystem_pipeline != nullptr && !trackingThreadCrashed && !shouldExit) {
+                        if(fullSystem_pipeline != nullptr && !pipelineSystemCrashed && !shouldExit) {
                             fullSystem_pipeline->addActiveFrame(img_pipeline, i);
                             processed_pipeline = img_pipeline;  // Mark as processed
                             img_pipeline = nullptr;  // Transfer ownership, don't delete
@@ -1092,31 +1154,42 @@ int main( int argc, char** argv )
                                 try { delete img_pipeline; } catch(...) {}
                                 img_pipeline = nullptr;
                             }
-                            if(trackingThreadCrashed || shouldExit) {
-                                // Stop processing immediately
+                            // If pipeline crashed but raw is still running, continue with raw only
+                            if(pipelineSystemCrashed && !rawSystemCrashed) {
+                                // Continue processing raw path
+                            } else if(shouldExit) {
+                                // Exit requested, stop both
                                 break;
                             }
                         }
                     } catch(const std::exception& e) {
                         printf("ERROR: Exception in addActiveFrame (pipeline): %s\n", e.what());
-                        trackingThreadCrashed = true;
-                        crashMessage = std::string("Exception in pipeline path: ") + e.what();
+                        pipelineSystemCrashed = true;
+                        pipelineCrashMessage = std::string("Exception in pipeline path: ") + e.what();
+                        printf("Pipeline system has crashed, but raw will continue if possible\n");
                         if(img_pipeline != nullptr) {
                             try { delete img_pipeline; } catch(...) {}
                             img_pipeline = nullptr;
                         }
-                        // Stop processing immediately on crash
-                        break;
+                        // Don't break - let raw continue if it's still working
+                        // Only break if both systems crashed or exit requested
+                        if(rawSystemCrashed || shouldExit) {
+                            break;
+                        }
                     } catch(...) {
                         printf("ERROR: Unknown exception in addActiveFrame (pipeline)\n");
-                        trackingThreadCrashed = true;
-                        crashMessage = "Unknown exception in pipeline path";
+                        pipelineSystemCrashed = true;
+                        pipelineCrashMessage = "Unknown exception in pipeline path";
+                        printf("Pipeline system has crashed, but raw will continue if possible\n");
                         if(img_pipeline != nullptr) {
                             try { delete img_pipeline; } catch(...) {}
                             img_pipeline = nullptr;
                         }
-                        // Stop processing immediately on crash
-                        break;
+                        // Don't break - let raw continue if it's still working
+                        // Only break if both systems crashed or exit requested
+                        if(rawSystemCrashed || shouldExit) {
+                            break;
+                        }
                     }
                     
                     // Clean up any remaining images (shouldn't happen if both succeeded)
@@ -1584,6 +1657,8 @@ int main( int argc, char** argv )
                 if(ch == 'e' || ch == 'E')
                 {
                     stopProcessing = true;
+                    shouldExit = true;
+                    exportRequested = true;  // Set flag to trigger export
                     printf("\n>>> 'e' pressed! Stopping processing and saving files...\n");
                     // Close viewer to exit GUI loop quickly (for camera mode)
                     if(cameraReaderPtr != nullptr)
@@ -1751,18 +1826,26 @@ int main( int argc, char** argv )
 			std::string outputDirPipeline = "dso_output/pipeline";
 			
 			try {
-				printf("Exporting raw reconstruction to: %s\n", outputDirRaw.c_str());
-				if(dualViewer != nullptr) {
-					IOWrap::DataExporter::exportAllDual(fullSystem_raw, dualViewer, capturedFrames, outputDirRaw, 30.0, true);
-				} else {
-					IOWrap::DataExporter::exportAll(fullSystem_raw, nullptr, capturedFrames, outputDirRaw, 30.0);
+				// Export raw even if it crashed - save what we have
+				if(rawSystemCrashed) {
+					printf("WARNING: Raw system crashed, but exporting available data...\n");
 				}
-				printf("Raw reconstruction export completed successfully!\n");
-				
-				// Export quantitative metrics for raw
-				printf("Exporting quantitative metrics for raw reconstruction...\n");
-				std::string metricsFileRaw = outputDirRaw + "/quantitative_metrics.txt";
-				IOWrap::DataExporter::exportQuantitativeMetrics(fullSystem_raw, dualViewer, metricsFileRaw, true, totalFramesProcessed, totalTime);
+				printf("Exporting raw reconstruction to: %s\n", outputDirRaw.c_str());
+				if(fullSystem_raw != nullptr) {
+					if(dualViewer != nullptr) {
+						IOWrap::DataExporter::exportAllDual(fullSystem_raw, dualViewer, capturedFrames, outputDirRaw, 30.0, true);
+					} else {
+						IOWrap::DataExporter::exportAll(fullSystem_raw, nullptr, capturedFrames, outputDirRaw, 30.0);
+					}
+					printf("Raw reconstruction export completed successfully!\n");
+					
+					// Export quantitative metrics for raw
+					printf("Exporting quantitative metrics for raw reconstruction...\n");
+					std::string metricsFileRaw = outputDirRaw + "/quantitative_metrics.txt";
+					IOWrap::DataExporter::exportQuantitativeMetrics(fullSystem_raw, dualViewer, metricsFileRaw, true, totalFramesProcessed, totalTime);
+				} else {
+					printf("WARNING: fullSystem_raw is null, skipping raw export\n");
+				}
 			} catch(const std::exception& e) {
 				printf("ERROR: Exception during raw data export: %s\n", e.what());
 			} catch(...) {
@@ -1770,18 +1853,26 @@ int main( int argc, char** argv )
 			}
 			
 			try {
-				printf("Exporting pipeline reconstruction to: %s\n", outputDirPipeline.c_str());
-				if(dualViewer != nullptr) {
-					IOWrap::DataExporter::exportAllDual(fullSystem_pipeline, dualViewer, capturedFrames, outputDirPipeline, 30.0, false);
-				} else {
-					IOWrap::DataExporter::exportAll(fullSystem_pipeline, nullptr, capturedFrames, outputDirPipeline, 30.0);
+				// Export pipeline even if it crashed - save what we have
+				if(pipelineSystemCrashed) {
+					printf("WARNING: Pipeline system crashed, but exporting available data...\n");
 				}
-				printf("Pipeline reconstruction export completed successfully!\n");
-				
-				// Export quantitative metrics for pipeline
-				printf("Exporting quantitative metrics for pipeline reconstruction...\n");
-				std::string metricsFilePipeline = outputDirPipeline + "/quantitative_metrics.txt";
-				IOWrap::DataExporter::exportQuantitativeMetrics(fullSystem_pipeline, dualViewer, metricsFilePipeline, false, totalFramesProcessed, totalTime);
+				printf("Exporting pipeline reconstruction to: %s\n", outputDirPipeline.c_str());
+				if(fullSystem_pipeline != nullptr) {
+					if(dualViewer != nullptr) {
+						IOWrap::DataExporter::exportAllDual(fullSystem_pipeline, dualViewer, capturedFrames, outputDirPipeline, 30.0, false);
+					} else {
+						IOWrap::DataExporter::exportAll(fullSystem_pipeline, nullptr, capturedFrames, outputDirPipeline, 30.0);
+					}
+					printf("Pipeline reconstruction export completed successfully!\n");
+					
+					// Export quantitative metrics for pipeline
+					printf("Exporting quantitative metrics for pipeline reconstruction...\n");
+					std::string metricsFilePipeline = outputDirPipeline + "/quantitative_metrics.txt";
+					IOWrap::DataExporter::exportQuantitativeMetrics(fullSystem_pipeline, dualViewer, metricsFilePipeline, false, totalFramesProcessed, totalTime);
+				} else {
+					printf("WARNING: fullSystem_pipeline is null, skipping pipeline export\n");
+				}
 			} catch(const std::exception& e) {
 				printf("ERROR: Exception during pipeline data export: %s\n", e.what());
 			} catch(...) {
@@ -1793,11 +1884,21 @@ int main( int argc, char** argv )
 		}
 		else if(fullSystem != nullptr)
 		{
-			// Single mode: original behavior
+			// Single mode: export single result
 			std::string outputDir = "dso_output";
 			try {
+				// Export even if crashed - save what we have
+				if(trackingThreadCrashed) {
+					printf("WARNING: System crashed, but exporting available data...\n");
+				}
+				printf("Exporting reconstruction to: %s\n", outputDir.c_str());
 				IOWrap::DataExporter::exportAll(fullSystem, viewer, capturedFrames, outputDir, 30.0);
-				printf("Data export completed successfully!\n");
+				printf("Reconstruction export completed successfully!\n");
+				
+				// Export quantitative metrics
+				printf("Exporting quantitative metrics...\n");
+				std::string metricsFile = outputDir + "/quantitative_metrics.txt";
+				IOWrap::DataExporter::exportQuantitativeMetrics(fullSystem, nullptr, metricsFile, false, totalFramesProcessed, totalTime);
 			} catch(const std::exception& e) {
 				printf("ERROR: Exception during data export: %s\n", e.what());
 			} catch(...) {
@@ -1855,47 +1956,60 @@ int main( int argc, char** argv )
 	printf("=======================================================\n\n");
 	
 	// Now calculate detailed metrics from exported files (after Pangolin is closed)
+	// Always calculate metrics, even if crashed (to save what we have)
 	printf("\n==================== CALCULATING DETAILED METRICS ====================\n");
 	{
 		std::lock_guard<std::mutex> lock(fullSystemMutex);
-		if(enableDualMode && fullSystem_raw != nullptr && fullSystem_pipeline != nullptr)
+		if(enableDualMode)
 		{
-			// Calculate detailed metrics for raw
-			try {
-				printf("Calculating detailed metrics for raw reconstruction...\n");
-				std::string outputDirRaw = "dso_output/raw";
-				std::string metricsFileRaw = outputDirRaw + "/quantitative_metrics.txt";
-				IOWrap::DataExporter::calculateAndUpdateMetricsFromFiles(outputDirRaw, metricsFileRaw, true);
-			} catch(const std::exception& e) {
-				printf("ERROR: Exception calculating detailed metrics for raw: %s\n", e.what());
-			} catch(...) {
-				printf("ERROR: Unknown exception calculating detailed metrics for raw\n");
+			// Calculate detailed metrics for raw (even if crashed)
+			if(!rawSystemCrashed || exportRequested) {
+				try {
+					printf("Calculating detailed metrics for raw reconstruction...\n");
+					std::string outputDirRaw = "dso_output/raw";
+					std::string metricsFileRaw = outputDirRaw + "/quantitative_metrics.txt";
+					IOWrap::DataExporter::calculateAndUpdateMetricsFromFiles(outputDirRaw, metricsFileRaw, true);
+				} catch(const std::exception& e) {
+					printf("ERROR: Exception calculating detailed metrics for raw: %s\n", e.what());
+				} catch(...) {
+					printf("ERROR: Unknown exception calculating detailed metrics for raw\n");
+				}
+			} else {
+				printf("Skipping raw metrics calculation (system crashed and no export requested)\n");
 			}
 			
-			// Calculate detailed metrics for pipeline
-			try {
-				printf("Calculating detailed metrics for pipeline reconstruction...\n");
-				std::string outputDirPipeline = "dso_output/pipeline";
-				std::string metricsFilePipeline = outputDirPipeline + "/quantitative_metrics.txt";
-				IOWrap::DataExporter::calculateAndUpdateMetricsFromFiles(outputDirPipeline, metricsFilePipeline, false);
-			} catch(const std::exception& e) {
-				printf("ERROR: Exception calculating detailed metrics for pipeline: %s\n", e.what());
-			} catch(...) {
-				printf("ERROR: Unknown exception calculating detailed metrics for pipeline\n");
+			// Calculate detailed metrics for pipeline (even if crashed)
+			if(!pipelineSystemCrashed || exportRequested) {
+				try {
+					printf("Calculating detailed metrics for pipeline reconstruction...\n");
+					std::string outputDirPipeline = "dso_output/pipeline";
+					std::string metricsFilePipeline = outputDirPipeline + "/quantitative_metrics.txt";
+					IOWrap::DataExporter::calculateAndUpdateMetricsFromFiles(outputDirPipeline, metricsFilePipeline, false);
+				} catch(const std::exception& e) {
+					printf("ERROR: Exception calculating detailed metrics for pipeline: %s\n", e.what());
+				} catch(...) {
+					printf("ERROR: Unknown exception calculating detailed metrics for pipeline\n");
+				}
+			} else {
+				printf("Skipping pipeline metrics calculation (system crashed and no export requested)\n");
 			}
 		}
 		else if(fullSystem != nullptr)
 		{
-			// Single mode: calculate detailed metrics
-			try {
-				printf("Calculating detailed metrics...\n");
-				std::string outputDir = "dso_output";
-				std::string metricsFile = outputDir + "/quantitative_metrics.txt";
-				IOWrap::DataExporter::calculateAndUpdateMetricsFromFiles(outputDir, metricsFile, false);
-			} catch(const std::exception& e) {
-				printf("ERROR: Exception calculating detailed metrics: %s\n", e.what());
-			} catch(...) {
-				printf("ERROR: Unknown exception calculating detailed metrics\n");
+			// Single mode: calculate detailed metrics (even if crashed)
+			if(!trackingThreadCrashed || exportRequested) {
+				try {
+					printf("Calculating detailed metrics...\n");
+					std::string outputDir = "dso_output";
+					std::string metricsFile = outputDir + "/quantitative_metrics.txt";
+					IOWrap::DataExporter::calculateAndUpdateMetricsFromFiles(outputDir, metricsFile, false);
+				} catch(const std::exception& e) {
+					printf("ERROR: Exception calculating detailed metrics: %s\n", e.what());
+				} catch(...) {
+					printf("ERROR: Unknown exception calculating detailed metrics\n");
+				}
+			} else {
+				printf("Skipping metrics calculation (system crashed and no export requested)\n");
 			}
 		}
 	}
