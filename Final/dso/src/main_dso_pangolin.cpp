@@ -84,8 +84,9 @@ float playbackSpeed=0;	// 0 for linearize (play as fast as possible, while seque
 bool preload=false;
 bool useSampleOutput=false;
 int cameraIndex = -1;  // -1 means use image folder, >= 0 means use camera
-bool enableDualMode = false;  // Enable dual mode (raw + pipeline)
+int dualMode = 0;  // Dual mode: 0=raw only, 1=both (raw+pipeline), 2=pipeline only
 bool enableCLAHE = false;  // Enable CLAHE for pipeline path
+bool saveVideo = false;  // Save video when using camera=0 (0=disabled, 1=enabled)
 
 
 int mode=0;
@@ -387,16 +388,36 @@ void parseArgument(char* arg)
 
 	if(1==sscanf(arg,"dual=%d",&option))
 	{
-		enableDualMode = (option == 1);
-		printf("Dual mode: %s\n", enableDualMode ? "ENABLED" : "DISABLED");
+		dualMode = option;
+		if(dualMode == 0)
+			printf("Dual mode: 0 (Raw only)\n");
+		else if(dualMode == 1)
+			printf("Dual mode: 1 (Both - Raw + Pipeline)\n");
+		else if(dualMode == 2)
+			printf("Dual mode: 2 (Pipeline only)\n");
+		else
+		{
+			printf("WARNING: Invalid dual mode %d, using 0 (Raw only)\n", option);
+			dualMode = 0;
+		}
 		return;
 	}
 	
 	// Also try parsing without = sign for compatibility
 	if(1==sscanf(arg,"dual%d",&option))
 	{
-		enableDualMode = (option == 1);
-		printf("Dual mode: %s\n", enableDualMode ? "ENABLED" : "DISABLED");
+		dualMode = option;
+		if(dualMode == 0)
+			printf("Dual mode: 0 (Raw only)\n");
+		else if(dualMode == 1)
+			printf("Dual mode: 1 (Both - Raw + Pipeline)\n");
+		else if(dualMode == 2)
+			printf("Dual mode: 2 (Pipeline only)\n");
+		else
+		{
+			printf("WARNING: Invalid dual mode %d, using 0 (Raw only)\n", option);
+			dualMode = 0;
+		}
 		return;
 	}
 
@@ -404,6 +425,21 @@ void parseArgument(char* arg)
 	{
 		enableCLAHE = (option == 1);
 		printf("CLAHE: %s\n", enableCLAHE ? "ENABLED" : "DISABLED");
+		return;
+	}
+
+	if(1==sscanf(arg,"save_video=%d",&option))
+	{
+		saveVideo = (option == 1);
+		printf("Save video (camera mode): %s\n", saveVideo ? "ENABLED" : "DISABLED");
+		return;
+	}
+	
+	// Also try parsing without = sign for compatibility
+	if(1==sscanf(arg,"save_video%d",&option))
+	{
+		saveVideo = (option == 1);
+		printf("Save video (camera mode): %s\n", saveVideo ? "ENABLED" : "DISABLED");
 		return;
 	}
 	
@@ -512,29 +548,51 @@ int main( int argc, char** argv )
 	{
 		// Use video file input
 		printf("Initializing video file input...\n");
-		if(enableDualMode)
+		if(dualMode == 1)
 		{
 			printf("Dual mode enabled: Raw path (photometric only) + Pipeline path (full processing)\n");
 		}
-		cameraReader = new CameraReader(videoFile, calib, gammaCalib, vignette, enableDualMode, enableCLAHE);
+		else if(dualMode == 0)
+		{
+			printf("Raw mode enabled: Raw path only (photometric only)\n");
+		}
+		else if(dualMode == 2)
+		{
+			printf("Pipeline mode enabled: Pipeline path only (full processing)\n");
+		}
+		// Always enable dual mode in CameraReader if dualMode > 0, so it can provide both paths
+		// But we'll only use the paths we need based on dualMode
+		bool enableDualModeForReader = (dualMode == 1 || dualMode == 0 || dualMode == 2);
+		cameraReader = new CameraReader(videoFile, calib, gammaCalib, vignette, enableDualModeForReader, enableCLAHE);
 		cameraReader->setGlobalCalibration();
 	}
 	else if(cameraIndex >= 0)
 	{
 		// Use camera input
 		printf("Initializing camera input...\n");
-		if(enableDualMode)
+		if(dualMode == 1)
 		{
 			printf("Dual mode enabled: Raw path (photometric only) + Pipeline path (full processing)\n");
 		}
-		cameraReader = new CameraReader(cameraIndex, calib, gammaCalib, vignette, enableDualMode, enableCLAHE);
-		cameraReader->setGlobalCalibration();
+		else if(dualMode == 0)
+		{
+			printf("Raw mode enabled: Raw path only (photometric only)\n");
+		}
+		else if(dualMode == 2)
+		{
+			printf("Pipeline mode enabled: Pipeline path only (full processing)\n");
+		}
+		// Always enable dual mode in CameraReader if dualMode > 0, so it can provide both paths
+		// But we'll only use the paths we need based on dualMode
+		bool enableDualModeForReader = (dualMode == 1 || dualMode == 0 || dualMode == 2);
+		cameraReader = new CameraReader(cameraIndex, calib, gammaCalib, vignette, enableDualModeForReader, enableCLAHE);
+			cameraReader->setGlobalCalibration();
 	}
 	else
 	{
 		// Use image folder input
 		reader = new ImageFolderReader(source,calib, gammaCalib, vignette);
-		reader->setGlobalCalibration();
+	reader->setGlobalCalibration();
 	}
 
 
@@ -573,11 +631,14 @@ int main( int argc, char** argv )
 	FullSystem* fullSystem_raw = nullptr;
 	FullSystem* fullSystem_pipeline = nullptr;
 	
-	if(enableDualMode && cameraReader != nullptr)
+	// Create FullSystem instances based on dualMode
+	if(cameraReader != nullptr)
 	{
-		// Dual mode: create two FullSystem instances
 		float* gamma = cameraReader->getPhotometricGamma();
 		
+		if(dualMode == 1)
+		{
+			// Dual mode: create two FullSystem instances
 		fullSystem_raw = new FullSystem();
 		fullSystem_raw->setGammaFunction(gamma);
 		fullSystem_raw->linearizeOperation = (playbackSpeed==0);
@@ -586,13 +647,32 @@ int main( int argc, char** argv )
 		fullSystem_pipeline->setGammaFunction(gamma);
 		fullSystem_pipeline->linearizeOperation = (playbackSpeed==0);
 		
-		printf("Created two FullSystem instances for dual mode\n");
+			printf("Created two FullSystem instances for dual mode (both paths)\n");
+		}
+		else if(dualMode == 0)
+		{
+			// Raw only mode: create only raw FullSystem
+			fullSystem_raw = new FullSystem();
+			fullSystem_raw->setGammaFunction(gamma);
+			fullSystem_raw->linearizeOperation = (playbackSpeed==0);
+			
+			printf("Created FullSystem for raw path only\n");
+		}
+		else if(dualMode == 2)
+		{
+			// Pipeline only mode: create only pipeline FullSystem
+			fullSystem_pipeline = new FullSystem();
+			fullSystem_pipeline->setGammaFunction(gamma);
+			fullSystem_pipeline->linearizeOperation = (playbackSpeed==0);
+			
+			printf("Created FullSystem for pipeline path only\n");
+		}
 	}
 	else
 	{
-		// Single mode: original behavior
+		// Single mode: original behavior (for ImageFolderReader)
 		fullSystem = new FullSystem();
-		float* gamma = (cameraReader != nullptr) ? cameraReader->getPhotometricGamma() : reader->getPhotometricGamma();
+		float* gamma = reader->getPhotometricGamma();
 		fullSystem->setGammaFunction(gamma);
 		fullSystem->linearizeOperation = (playbackSpeed==0);
 	}
@@ -617,7 +697,7 @@ int main( int argc, char** argv )
         printf("Verified: GUI initialization on main thread (macOS requirement satisfied)\n");
         #endif
         
-        if(enableDualMode && cameraReader != nullptr)
+        if(dualMode == 1 && cameraReader != nullptr)
         {
             // Dual mode: create single dual viewer that handles both systems
             printf("Creating dual viewer with dimensions: wG[0]=%d, hG[0]=%d\n", wG[0], hG[0]);
@@ -646,6 +726,32 @@ int main( int argc, char** argv )
             fullSystem_pipeline->outputWrapper.push_back(viewerPipelineWrapper);
             
             printf("Created dual viewer for side-by-side display (raw left, pipeline right)\n");
+        }
+        else if((dualMode == 0 || dualMode == 2) && cameraReader != nullptr)
+        {
+            // Single path mode: create single viewer
+            printf("Creating single viewer with dimensions: wG[0]=%d, hG[0]=%d\n", wG[0], hG[0]);
+            if(wG[0] <= 0 || hG[0] <= 0)
+            {
+                printf("ERROR: Invalid global calibration dimensions! wG[0]=%d, hG[0]=%d\n", wG[0], hG[0]);
+                printf("Make sure setGlobalCalibration() was called before creating viewer!\n");
+                printf("Using default dimensions 640x480 for GUI\n");
+                wG[0] = 640;
+                hG[0] = 480;
+                setGlobalCalib(wG[0], hG[0], Eigen::Matrix3f::Identity());
+            }
+            viewer = new IOWrap::PangolinDSOViewer(wG[0], hG[0], false);
+            
+            if(dualMode == 0 && fullSystem_raw != nullptr)
+            {
+                fullSystem_raw->outputWrapper.push_back(viewer);
+                printf("Created single viewer for raw path only\n");
+            }
+            else if(dualMode == 2 && fullSystem_pipeline != nullptr)
+            {
+                fullSystem_pipeline->outputWrapper.push_back(viewer);
+                printf("Created single viewer for pipeline path only\n");
+            }
         }
         else
         {
@@ -680,8 +786,8 @@ int main( int argc, char** argv )
     ImageFolderReader* readerPtr = reader;
     CameraReader* cameraReaderPtr = cameraReader;
     
-    // Capture dual mode flag for lambda
-    bool enableDualModeFlag = enableDualMode;
+    // Capture dual mode value for lambda
+    int dualModeFlag = dualMode;
     
     // Mutex to protect fullSystem access during reset
     std::mutex fullSystemMutex;
@@ -751,7 +857,7 @@ int main( int argc, char** argv )
     // Create a flag to indicate GUI is ready
     std::atomic<bool> guiReady(false);
     
-    std::thread runthread([&, readerPtr, cameraReaderPtr, enableDualModeFlag]() {
+    std::thread runthread([&, readerPtr, cameraReaderPtr, dualModeFlag]() {
         // Wait a bit for GUI to initialize before starting processing
         // This gives GUI time to open the window
         int waitCount = 0;
@@ -884,7 +990,7 @@ int main( int argc, char** argv )
             }
             
             // Check if we should exit (from signal handler) or if both systems crashed
-            if(enableDualMode) {
+            if(dualModeFlag == 0 || dualModeFlag == 1 || dualModeFlag == 2) {
                 if(shouldExit || (rawSystemCrashed && pipelineSystemCrashed)) {
                     if(shouldExit) {
                         printf("Exit flag set - stopping frame processing but keeping GUI open...\n");
@@ -916,7 +1022,7 @@ int main( int argc, char** argv )
             // Check initialization status (with mutex protection)
         {
                 std::lock_guard<std::mutex> lock(fullSystemMutex);
-                if(enableDualModeFlag)
+                if(dualModeFlag == 1)
                 {
                     if((fullSystem_raw != nullptr && !fullSystem_raw->initialized) ||
                        (fullSystem_pipeline != nullptr && !fullSystem_pipeline->initialized))
@@ -926,7 +1032,9 @@ int main( int argc, char** argv )
                         sInitializerOffset = 0.0;
                     }
                 }
-                else if(fullSystem != nullptr && !fullSystem->initialized)	// if not initialized: reset start time.
+                else if((dualModeFlag == 0 && fullSystem_raw != nullptr && !fullSystem_raw->initialized) ||
+                        (dualModeFlag == 2 && fullSystem_pipeline != nullptr && !fullSystem_pipeline->initialized) ||
+                        (fullSystem != nullptr && !fullSystem->initialized))	// if not initialized: reset start time.
             {
                 gettimeofday(&tv_start, NULL);
                 started = clock();
@@ -946,19 +1054,35 @@ int main( int argc, char** argv )
             ImageAndExposure* img_raw = nullptr;
             ImageAndExposure* img_pipeline = nullptr;
             
-            if(enableDualModeFlag && cameraReaderPtr != nullptr)
+            if((dualModeFlag == 0 || dualModeFlag == 1 || dualModeFlag == 2) && cameraReaderPtr != nullptr)
+            {
+                // Get images based on dualMode
+                if(dualModeFlag == 0)
+                {
+                    // Raw only mode: get raw image
+                    img_raw = cameraReaderPtr->getImageRaw(i);
+                    img_pipeline = nullptr;
+                }
+                else if(dualModeFlag == 1)
             {
                 // Dual mode: get both raw and pipeline images
                 img_raw = cameraReaderPtr->getImageRaw(i);
                 img_pipeline = cameraReaderPtr->getImagePipeline(i);
+                }
+                else if(dualModeFlag == 2)
+                {
+                    // Pipeline only mode: get pipeline image
+                    img_raw = nullptr;
+                    img_pipeline = cameraReaderPtr->getImagePipeline(i);
+                }
                 
-                // Record original BGR frame for video export (camera mode only)
+                // Record original BGR frame for video export (camera mode only, if saveVideo is enabled)
                 // Note: In dual mode, getImageRaw() and getImagePipeline() both call captureFrame(),
                 // so lastCapturedFrame will be updated twice. We record after both calls to get
                 // the frame that was captured (which will be from getImagePipeline, the last one).
                 // Both paths should use the same original frame, but due to timing they may differ.
                 // For video recording, we record the frame that was actually captured.
-                if(cameraReaderPtr != nullptr && !cameraReaderPtr->isVideoFile)
+                if(saveVideo && cameraReaderPtr != nullptr && !cameraReaderPtr->isVideoFile)
                 {
                     cv::Mat originalFrame = cameraReaderPtr->getOriginalBGRFrame();
                     if(!originalFrame.empty())
@@ -973,7 +1097,14 @@ int main( int argc, char** argv )
                     }
                 }
                 
-                if(img_raw == nullptr || img_pipeline == nullptr)
+                // Validate images based on mode
+                if(dualModeFlag == 0 && img_raw == nullptr)
+                {
+                    printf("WARNING: Failed to get raw image for frame %d, skipping.\n", i);
+                    usleep(33000);
+                    continue;
+                }
+                else if(dualModeFlag == 1 && (img_raw == nullptr || img_pipeline == nullptr))
                 {
                     printf("WARNING: Failed to get images for frame %d, skipping.\n", i);
                     if(img_raw != nullptr) delete img_raw;
@@ -981,10 +1112,16 @@ int main( int argc, char** argv )
                     usleep(33000);
                     continue;
                 }
+                else if(dualModeFlag == 2 && img_pipeline == nullptr)
+                {
+                    printf("WARNING: Failed to get pipeline image for frame %d, skipping.\n", i);
+                    usleep(33000);
+                    continue;
+                }
             }
             else
             {
-                // Single mode: original behavior
+                // Single mode: original behavior (for ImageFolderReader)
                 if(preload && cameraReaderPtr == nullptr && frameIndex-1 < (int)preloadedImages.size())
                 {
                     img = preloadedImages[frameIndex-1];
@@ -995,8 +1132,8 @@ int main( int argc, char** argv )
                     {
                         img = cameraReaderPtr->getImage(i);
                         
-                        // Record original BGR frame for video export (camera mode only)
-                        if(!cameraReaderPtr->isVideoFile)
+                        // Record original BGR frame for video export (camera mode only, if saveVideo is enabled)
+                        if(saveVideo && !cameraReaderPtr->isVideoFile)
                         {
                             cv::Mat originalFrame = cameraReaderPtr->getOriginalBGRFrame();
                             if(!originalFrame.empty())
@@ -1047,7 +1184,7 @@ int main( int argc, char** argv )
 
 
 
-            if(enableDualModeFlag && cameraReaderPtr != nullptr)
+            if((dualModeFlag == 0 || dualModeFlag == 1 || dualModeFlag == 2) && cameraReaderPtr != nullptr)
             {
                 // Check if we should stop before processing frames
                 if(stopProcessing || shouldExit)
@@ -1060,10 +1197,175 @@ int main( int argc, char** argv )
                         try { delete img_pipeline; } catch(...) {}
                         img_pipeline = nullptr;
                     }
-                    printf("Stop signal received in dual mode - exiting frame processing loop\n");
+                    printf("Stop signal received - exiting frame processing loop\n");
                     break;
                 }
                 
+                // Process images based on mode
+                if(dualModeFlag == 0)
+                {
+                    // Raw only mode: process raw image
+                    if(!skipFrame && img_raw != nullptr)
+                    {
+                        if(resetting)
+                        {
+                            delete img_raw;
+                            img_raw = nullptr;
+                            usleep(10000);
+                            continue;
+                        }
+                        
+                        std::lock_guard<std::mutex> lock(fullSystemMutex);
+                        
+                        if(resetting || fullSystem_raw == nullptr)
+                        {
+                            delete img_raw;
+                            img_raw = nullptr;
+                            continue;
+                        }
+                        
+                        // Validate image before processing
+                        if(img_raw == nullptr || img_raw->image == nullptr)
+                        {
+                            printf("WARNING: Invalid raw image data, skipping frame %d\n", i);
+                            if(img_raw != nullptr) {
+                                try { delete img_raw; } catch(...) {}
+                                img_raw = nullptr;
+                            }
+                            continue;
+                        }
+                        
+                        // Check if we should stop due to crash or exit
+                        if(rawSystemCrashed || shouldExit) {
+                            if(shouldExit) {
+                                printf("Exit requested - stopping frame processing\n");
+                            } else {
+                                printf("Raw system has crashed - stopping frame processing\n");
+                                printf("Reconstruction has stopped. Pangolin viewer will remain open for inspection.\n");
+                            }
+                            if(img_raw != nullptr) {
+                                try { delete img_raw; } catch(...) {}
+                                img_raw = nullptr;
+                            }
+                            break;
+                        }
+                        
+                        // Process raw path
+                        try {
+                            if(fullSystem_raw != nullptr && !rawSystemCrashed && !shouldExit) {
+                                fullSystem_raw->addActiveFrame(img_raw, i);
+                                img_raw = nullptr;  // Transfer ownership, don't delete
+                            } else {
+                                if(img_raw != nullptr) {
+                                    try { delete img_raw; } catch(...) {}
+                                    img_raw = nullptr;
+                                }
+                                if(shouldExit) break;
+                            }
+                        } catch(const std::exception& e) {
+                            printf("ERROR: Exception in addActiveFrame (raw): %s\n", e.what());
+                            rawSystemCrashed = true;
+                            rawCrashMessage = std::string("Exception in raw path: ") + e.what();
+                            if(img_raw != nullptr) {
+                                try { delete img_raw; } catch(...) {}
+                                img_raw = nullptr;
+                            }
+                            break;
+                        } catch(...) {
+                            printf("ERROR: Unknown exception in addActiveFrame (raw)\n");
+                            rawSystemCrashed = true;
+                            rawCrashMessage = "Unknown exception in raw path";
+                            if(img_raw != nullptr) {
+                                try { delete img_raw; } catch(...) {}
+                                img_raw = nullptr;
+                            }
+                            break;
+                        }
+                    }
+                }
+                else if(dualModeFlag == 2)
+                {
+                    // Pipeline only mode: process pipeline image
+                    if(!skipFrame && img_pipeline != nullptr)
+                    {
+                        if(resetting)
+                        {
+                            delete img_pipeline;
+                            img_pipeline = nullptr;
+                            usleep(10000);
+                            continue;
+                        }
+                        
+                        std::lock_guard<std::mutex> lock(fullSystemMutex);
+                        
+                        if(resetting || fullSystem_pipeline == nullptr)
+                        {
+                            delete img_pipeline;
+                            img_pipeline = nullptr;
+                            continue;
+                        }
+                        
+                        // Validate image before processing
+                        if(img_pipeline == nullptr || img_pipeline->image == nullptr)
+                        {
+                            printf("WARNING: Invalid pipeline image data, skipping frame %d\n", i);
+                            if(img_pipeline != nullptr) {
+                                try { delete img_pipeline; } catch(...) {}
+                                img_pipeline = nullptr;
+                            }
+                            continue;
+                        }
+                        
+                        // Check if we should stop due to crash or exit
+                        if(pipelineSystemCrashed || shouldExit) {
+                            if(shouldExit) {
+                                printf("Exit requested - stopping frame processing\n");
+                            } else {
+                                printf("Pipeline system has crashed - stopping frame processing\n");
+                                printf("Reconstruction has stopped. Pangolin viewer will remain open for inspection.\n");
+                            }
+                            if(img_pipeline != nullptr) {
+                                try { delete img_pipeline; } catch(...) {}
+                                img_pipeline = nullptr;
+                            }
+                            break;
+                        }
+                        
+                        // Process pipeline path
+                        try {
+                            if(fullSystem_pipeline != nullptr && !pipelineSystemCrashed && !shouldExit) {
+                                fullSystem_pipeline->addActiveFrame(img_pipeline, i);
+                                img_pipeline = nullptr;  // Transfer ownership, don't delete
+                            } else {
+                                if(img_pipeline != nullptr) {
+                                    try { delete img_pipeline; } catch(...) {}
+                                    img_pipeline = nullptr;
+                                }
+                                if(shouldExit) break;
+                            }
+                        } catch(const std::exception& e) {
+                            printf("ERROR: Exception in addActiveFrame (pipeline): %s\n", e.what());
+                            pipelineSystemCrashed = true;
+                            pipelineCrashMessage = std::string("Exception in pipeline path: ") + e.what();
+                            if(img_pipeline != nullptr) {
+                                try { delete img_pipeline; } catch(...) {}
+                                img_pipeline = nullptr;
+                            }
+                            break;
+                        } catch(...) {
+                            printf("ERROR: Unknown exception in addActiveFrame (pipeline)\n");
+                            pipelineSystemCrashed = true;
+                            pipelineCrashMessage = "Unknown exception in pipeline path";
+                            if(img_pipeline != nullptr) {
+                                try { delete img_pipeline; } catch(...) {}
+                                img_pipeline = nullptr;
+                            }
+                            break;
+                        }
+                    }
+                }
+                else if(dualModeFlag == 1)
+            {
                 // Dual mode: process both images
                 if(!skipFrame && img_raw != nullptr && img_pipeline != nullptr)
                 {
@@ -1088,179 +1390,160 @@ int main( int argc, char** argv )
                         continue;
                     }
                     
-                    // Validate images before processing
-                    if(img_raw == nullptr || img_pipeline == nullptr || 
-                       img_raw->image == nullptr || img_pipeline->image == nullptr)
-                    {
-                        printf("WARNING: Invalid image data, skipping frame %d\n", i);
-                        if(img_raw != nullptr) {
-                            try { delete img_raw; } catch(...) {}
-                            img_raw = nullptr;
-                        }
-                        if(img_pipeline != nullptr) {
-                            try { delete img_pipeline; } catch(...) {}
-                            img_pipeline = nullptr;
-                        }
-                        continue;
-                    }
-                    
-                    // Check if we should stop due to crash (both systems) or exit
-                    if((rawSystemCrashed && pipelineSystemCrashed) || shouldExit) {
-                        if(shouldExit) {
-                            printf("Exit requested - stopping frame processing\n");
-                        } else {
-                            printf("Both systems have crashed - stopping frame processing\n");
-                            printf("Reconstruction has stopped. Pangolin viewer will remain open for inspection.\n");
-                        }
-                        if(img_raw != nullptr) {
-                            try { delete img_raw; } catch(...) {}
-                            img_raw = nullptr;
-                        }
-                        if(img_pipeline != nullptr) {
-                            try { delete img_pipeline; } catch(...) {}
-                            img_pipeline = nullptr;
-                        }
-                        break;  // Exit the loop, but keep thread alive
-                    }
-                    // If only one system crashed, continue with the other
-                    if(rawSystemCrashed && !pipelineSystemCrashed) {
-                        // Skip raw processing, continue with pipeline
-                        if(img_raw != nullptr) {
-                            try { delete img_raw; } catch(...) {}
-                            img_raw = nullptr;
-                        }
-                    } else if(pipelineSystemCrashed && !rawSystemCrashed) {
-                        // Skip pipeline processing, continue with raw
-                        if(img_pipeline != nullptr) {
-                            try { delete img_pipeline; } catch(...) {}
-                            img_pipeline = nullptr;
-                        }
-                    }
-                    
-                    // Process raw path with comprehensive error handling
-                    ImageAndExposure* processed_raw = nullptr;
-                    try {
-                        if(fullSystem_raw != nullptr && !rawSystemCrashed && !shouldExit) {
-                            fullSystem_raw->addActiveFrame(img_raw, i);
-                            processed_raw = img_raw;  // Mark as processed
-                            img_raw = nullptr;  // Transfer ownership, don't delete
-                        } else {
-                            // System is null or crashed, clean up
+                        // Validate images before processing
+                        if(img_raw == nullptr || img_pipeline == nullptr || 
+                           img_raw->image == nullptr || img_pipeline->image == nullptr)
+                        {
+                            printf("WARNING: Invalid image data, skipping frame %d\n", i);
                             if(img_raw != nullptr) {
                                 try { delete img_raw; } catch(...) {}
                                 img_raw = nullptr;
                             }
-                            // If raw crashed but pipeline is still running, continue with pipeline only
-                            if(rawSystemCrashed && !pipelineSystemCrashed) {
-                                // Continue processing pipeline path
-                            } else if(shouldExit) {
-                                // Exit requested, stop both
-                                break;
-                            }
-                        }
-                    } catch(const std::exception& e) {
-                        printf("ERROR: Exception in addActiveFrame (raw): %s\n", e.what());
-                        rawSystemCrashed = true;
-                        rawCrashMessage = std::string("Exception in raw path: ") + e.what();
-                        printf("Raw system has crashed, but pipeline will continue if possible\n");
-                        if(img_raw != nullptr) {
-                            try { delete img_raw; } catch(...) {}
-                            img_raw = nullptr;
-                        }
-                        // Don't break - let pipeline continue if it's still working
-                        // Only break if both systems crashed or exit requested
-                        if(pipelineSystemCrashed || shouldExit) {
-                            break;
-                        }
-                    } catch(...) {
-                        printf("ERROR: Unknown exception in addActiveFrame (raw)\n");
-                        rawSystemCrashed = true;
-                        rawCrashMessage = "Unknown exception in raw path";
-                        printf("Raw system has crashed, but pipeline will continue if possible\n");
-                        if(img_raw != nullptr) {
-                            try { delete img_raw; } catch(...) {}
-                            img_raw = nullptr;
-                        }
-                        // Don't break - let pipeline continue if it's still working
-                        // Only break if both systems crashed or exit requested
-                        if(pipelineSystemCrashed || shouldExit) {
-                            break;
-                        }
-                    }
-                    
-                    // Process pipeline path with comprehensive error handling
-                    ImageAndExposure* processed_pipeline = nullptr;
-                    try {
-                        if(fullSystem_pipeline != nullptr && !pipelineSystemCrashed && !shouldExit) {
-                            fullSystem_pipeline->addActiveFrame(img_pipeline, i);
-                            processed_pipeline = img_pipeline;  // Mark as processed
-                            img_pipeline = nullptr;  // Transfer ownership, don't delete
-                        } else {
-                            // System is null or crashed, clean up
                             if(img_pipeline != nullptr) {
                                 try { delete img_pipeline; } catch(...) {}
                                 img_pipeline = nullptr;
                             }
-                            // If pipeline crashed but raw is still running, continue with raw only
-                            if(pipelineSystemCrashed && !rawSystemCrashed) {
-                                // Continue processing raw path
-                            } else if(shouldExit) {
-                                // Exit requested, stop both
+                            continue;
+                        }
+                        
+                        // Check if we should stop due to crash (both systems) or exit
+                        if((rawSystemCrashed && pipelineSystemCrashed) || shouldExit) {
+                            if(shouldExit) {
+                                printf("Exit requested - stopping frame processing\n");
+                            } else {
+                                printf("Both systems have crashed - stopping frame processing\n");
+                                printf("Reconstruction has stopped. Pangolin viewer will remain open for inspection.\n");
+                            }
+                            if(img_raw != nullptr) {
+                                try { delete img_raw; } catch(...) {}
+                                img_raw = nullptr;
+                            }
+                            if(img_pipeline != nullptr) {
+                                try { delete img_pipeline; } catch(...) {}
+                                img_pipeline = nullptr;
+                            }
+                            break;  // Exit the loop, but keep thread alive
+                        }
+                        // If only one system crashed, continue with the other
+                        if(rawSystemCrashed && !pipelineSystemCrashed) {
+                            // Skip raw processing, continue with pipeline
+                            if(img_raw != nullptr) {
+                                try { delete img_raw; } catch(...) {}
+                                img_raw = nullptr;
+                            }
+                        } else if(pipelineSystemCrashed && !rawSystemCrashed) {
+                            // Skip pipeline processing, continue with raw
+                            if(img_pipeline != nullptr) {
+                                try { delete img_pipeline; } catch(...) {}
+                                img_pipeline = nullptr;
+                            }
+                        }
+                        
+                        // Process raw path with comprehensive error handling
+                        try {
+                            if(fullSystem_raw != nullptr && !rawSystemCrashed && !shouldExit) {
+                        fullSystem_raw->addActiveFrame(img_raw, i);
+                                img_raw = nullptr;  // Transfer ownership, don't delete
+                            } else {
+                                // System is null or crashed, clean up
+                                if(img_raw != nullptr) {
+                                    try { delete img_raw; } catch(...) {}
+                                    img_raw = nullptr;
+                                }
+                                // If raw crashed but pipeline is still running, continue with pipeline only
+                                if(rawSystemCrashed && !pipelineSystemCrashed) {
+                                    // Continue processing pipeline path
+                                } else if(shouldExit) {
+                                    // Exit requested, stop both
+                                    break;
+                                }
+                            }
+                    } catch(const std::exception& e) {
+                            printf("ERROR: Exception in addActiveFrame (raw): %s\n", e.what());
+                            rawSystemCrashed = true;
+                            rawCrashMessage = std::string("Exception in raw path: ") + e.what();
+                            printf("Raw system has crashed, but pipeline will continue if possible\n");
+                            if(img_raw != nullptr) {
+                                try { delete img_raw; } catch(...) {}
+                        img_raw = nullptr;
+                            }
+                            // Don't break - let pipeline continue if it's still working
+                            // Only break if both systems crashed or exit requested
+                            if(pipelineSystemCrashed || shouldExit) {
+                                break;
+                            }
+                        } catch(...) {
+                            printf("ERROR: Unknown exception in addActiveFrame (raw)\n");
+                            rawSystemCrashed = true;
+                            rawCrashMessage = "Unknown exception in raw path";
+                            printf("Raw system has crashed, but pipeline will continue if possible\n");
+                            if(img_raw != nullptr) {
+                                try { delete img_raw; } catch(...) {}
+                                img_raw = nullptr;
+                            }
+                            if(pipelineSystemCrashed || shouldExit) {
                                 break;
                             }
                         }
-                    } catch(const std::exception& e) {
-                        printf("ERROR: Exception in addActiveFrame (pipeline): %s\n", e.what());
-                        pipelineSystemCrashed = true;
-                        pipelineCrashMessage = std::string("Exception in pipeline path: ") + e.what();
-                        printf("Pipeline system has crashed, but raw will continue if possible\n");
-                        if(img_pipeline != nullptr) {
-                            try { delete img_pipeline; } catch(...) {}
-                            img_pipeline = nullptr;
-                        }
-                        // Don't break - let raw continue if it's still working
-                        // Only break if both systems crashed or exit requested
-                        if(rawSystemCrashed || shouldExit) {
-                            break;
-                        }
-                    } catch(...) {
-                        printf("ERROR: Unknown exception in addActiveFrame (pipeline)\n");
-                        pipelineSystemCrashed = true;
-                        pipelineCrashMessage = "Unknown exception in pipeline path";
-                        printf("Pipeline system has crashed, but raw will continue if possible\n");
-                        if(img_pipeline != nullptr) {
-                            try { delete img_pipeline; } catch(...) {}
-                            img_pipeline = nullptr;
-                        }
-                        // Don't break - let raw continue if it's still working
-                        // Only break if both systems crashed or exit requested
-                        if(rawSystemCrashed || shouldExit) {
-                            break;
-                        }
-                    }
-                    
-                    // Clean up any remaining images (shouldn't happen if both succeeded)
-                    if(img_raw != nullptr) {
-                        try { delete img_raw; } catch(...) {}
-                        img_raw = nullptr;
-                    }
-                    if(img_pipeline != nullptr) {
-                        try { delete img_pipeline; } catch(...) {}
+                        
+                        // Process pipeline path with comprehensive error handling
+                        try {
+                            if(fullSystem_pipeline != nullptr && !pipelineSystemCrashed && !shouldExit) {
+                                fullSystem_pipeline->addActiveFrame(img_pipeline, i);
+                                img_pipeline = nullptr;  // Transfer ownership, don't delete
+                            } else {
+                                // System is null or crashed, clean up
+                                if(img_pipeline != nullptr) {
+                                    try { delete img_pipeline; } catch(...) {}
                         img_pipeline = nullptr;
-                    }
-                    
-                    // If crashed, stop processing but keep thread alive
-                    if(trackingThreadCrashed || shouldExit) {
-                        printf("Frame processing stopped due to crash/exit flag, but thread remains alive\n");
-                        printf("Reconstruction has stopped. Pangolin viewer will remain open for inspection.\n");
-                        // Don't break - let the loop continue but skip processing
-                        // This keeps the thread alive so GUI can continue
-                        while(trackingThreadCrashed || shouldExit) {
-                            usleep(500000);  // Sleep 500ms to avoid busy waiting
-                            // Keep thread alive but do nothing - GUI will continue running
+                                }
+                                // If pipeline crashed but raw is still running, continue with raw only
+                                if(pipelineSystemCrashed && !rawSystemCrashed) {
+                                    // Continue processing raw path
+                                } else if(shouldExit) {
+                                    // Exit requested, stop both
+                                    break;
+                                }
+                            }
+                        } catch(const std::exception& e) {
+                            printf("ERROR: Exception in addActiveFrame (pipeline): %s\n", e.what());
+                            pipelineSystemCrashed = true;
+                            pipelineCrashMessage = std::string("Exception in pipeline path: ") + e.what();
+                            printf("Pipeline system has crashed, but raw will continue if possible\n");
+                            if(img_pipeline != nullptr) {
+                                try { delete img_pipeline; } catch(...) {}
+                                img_pipeline = nullptr;
+                            }
+                            // Don't break - let raw continue if it's still working
+                            // Only break if both systems crashed or exit requested
+                            if(rawSystemCrashed || shouldExit) {
+                                break;
+                            }
+                    } catch(...) {
+                            printf("ERROR: Unknown exception in addActiveFrame (pipeline)\n");
+                            pipelineSystemCrashed = true;
+                            pipelineCrashMessage = "Unknown exception in pipeline path";
+                            printf("Pipeline system has crashed, but raw will continue if possible\n");
+                            if(img_pipeline != nullptr) {
+                                try { delete img_pipeline; } catch(...) {}
+                                img_pipeline = nullptr;
+                            }
+                            // Don't break - let raw continue if it's still working
+                            // Only break if both systems crashed or exit requested
+                            if(rawSystemCrashed || shouldExit) {
+                                break;
+                            }
                         }
-                        // If flags are cleared (shouldn't happen), continue processing
-                        continue;
+                        
+                        // Clean up any remaining images (shouldn't happen if both succeeded)
+                        if(img_raw != nullptr) {
+                            try { delete img_raw; } catch(...) {}
+                        img_raw = nullptr;
+                        }
+                        if(img_pipeline != nullptr) {
+                            try { delete img_pipeline; } catch(...) {}
+                        img_pipeline = nullptr;
+                        }
                     }
                 }
             }
@@ -1316,7 +1599,7 @@ int main( int argc, char** argv )
                     crashMessage = std::string("Exception in addActiveFrame: ") + e.what();
                     if(img != nullptr) {
                         try { delete img; } catch(...) {}
-                        img = nullptr;
+                    img = nullptr;
                     }
                     break;  // Exit loop on crash
                 } catch(...) {
@@ -1325,7 +1608,7 @@ int main( int argc, char** argv )
                     crashMessage = "Unknown exception in addActiveFrame";
                     if(img != nullptr) {
                         try { delete img; } catch(...) {}
-                        img = nullptr;
+                    img = nullptr;
                     }
                     break;  // Exit loop on crash
                 }
@@ -1354,7 +1637,7 @@ int main( int argc, char** argv )
             bool needReset = false;
             {
                 std::lock_guard<std::mutex> lock(fullSystemMutex);
-                if(enableDualModeFlag)
+                if(dualModeFlag == 1)
                 {
                     if((fullSystem_raw != nullptr && fullSystem_raw->initFailed) ||
                        (fullSystem_pipeline != nullptr && fullSystem_pipeline->initFailed) ||
@@ -1362,6 +1645,14 @@ int main( int argc, char** argv )
                     {
                         needReset = true;
                     }
+                }
+                else if(dualModeFlag == 0 && fullSystem_raw != nullptr && (fullSystem_raw->initFailed || setting_fullResetRequested))
+                {
+                    needReset = true;
+                }
+                else if(dualModeFlag == 2 && fullSystem_pipeline != nullptr && (fullSystem_pipeline->initFailed || setting_fullResetRequested))
+                {
+                    needReset = true;
                 }
                 else if(fullSystem != nullptr && (fullSystem->initFailed || setting_fullResetRequested))
                 {
@@ -1384,7 +1675,7 @@ int main( int argc, char** argv )
                     // Lock mutex before modifying fullSystem
                     std::lock_guard<std::mutex> lock(fullSystemMutex);
                     
-                    if(enableDualModeFlag)
+                    if(dualModeFlag == 1)
                     {
                         // Dual mode reset
                         if(fullSystem_raw == nullptr || fullSystem_pipeline == nullptr)
@@ -1453,9 +1744,109 @@ int main( int argc, char** argv )
                             break;
                         }
                     }
+                    else if(dualModeFlag == 0)
+                    {
+                        // Raw only mode reset
+                        if(fullSystem_raw == nullptr)
+                        {
+                            resetting = false;
+                            continue;
+                        }
+                        
+                        // Block until mapping is finished
+                        try {
+                            fullSystem_raw->blockUntilMappingIsFinished();
+                        } catch(const std::exception& e) {
+                            printf("WARNING: Exception in blockUntilMappingIsFinished during reset: %s\n", e.what());
+                        } catch(...) {
+                            printf("WARNING: Unknown exception in blockUntilMappingIsFinished during reset\n");
+                        }
+
+                        // Save output wrappers
+                        std::vector<IOWrap::Output3DWrapper*> wrapsRaw = fullSystem_raw->outputWrapper;
+                        
+                        // Delete old fullSystem
+                        try {
+                            delete fullSystem_raw;
+                            fullSystem_raw = nullptr;
+                        } catch(...) {
+                            fullSystem_raw = nullptr;
+                        }
+
+                        // Reset output wrappers
+                        for(IOWrap::Output3DWrapper* ow : wrapsRaw) {
+                            if(ow != nullptr) {
+                                try { ow->reset(); } catch(...) {}
+                            }
+                        }
+
+                        // Create new fullSystem
+                        try {
+                            float* gamma = cameraReaderPtr != nullptr ? cameraReaderPtr->getPhotometricGamma() : nullptr;
+                            
+                            fullSystem_raw = new FullSystem();
+                            fullSystem_raw->setGammaFunction(gamma);
+                            fullSystem_raw->linearizeOperation = (playbackSpeed==0);
+                            fullSystem_raw->outputWrapper = wrapsRaw;
+                        } catch(...) {
+                            printf("ERROR: Exception creating new fullSystem_raw during reset!\n");
+                            resetting = false;
+                            break;
+                        }
+                    }
+                    else if(dualModeFlag == 2)
+                    {
+                        // Pipeline only mode reset
+                        if(fullSystem_pipeline == nullptr)
+                        {
+                            resetting = false;
+                            continue;
+                        }
+                        
+                        // Block until mapping is finished
+                        try {
+                            fullSystem_pipeline->blockUntilMappingIsFinished();
+                        } catch(const std::exception& e) {
+                            printf("WARNING: Exception in blockUntilMappingIsFinished during reset: %s\n", e.what());
+                        } catch(...) {
+                            printf("WARNING: Unknown exception in blockUntilMappingIsFinished during reset\n");
+                        }
+
+                        // Save output wrappers
+                        std::vector<IOWrap::Output3DWrapper*> wrapsPipeline = fullSystem_pipeline->outputWrapper;
+                        
+                        // Delete old fullSystem
+                        try {
+                            delete fullSystem_pipeline;
+                            fullSystem_pipeline = nullptr;
+                        } catch(...) {
+                            fullSystem_pipeline = nullptr;
+                        }
+
+                        // Reset output wrappers
+                        for(IOWrap::Output3DWrapper* ow : wrapsPipeline) {
+                            if(ow != nullptr) {
+                                try { ow->reset(); } catch(...) {}
+                            }
+                        }
+
+                        // Create new fullSystem
+                        try {
+                            float* gamma = cameraReaderPtr != nullptr ? cameraReaderPtr->getPhotometricGamma() : nullptr;
+                            
+                            fullSystem_pipeline = new FullSystem();
+                            fullSystem_pipeline->setGammaFunction(gamma);
+                            fullSystem_pipeline->linearizeOperation = (playbackSpeed==0);
+                            fullSystem_pipeline->outputWrapper = wrapsPipeline;
+                        } catch(...) {
+                            printf("ERROR: Exception creating new fullSystem_pipeline during reset!\n");
+                            resetting = false;
+                            break;
+                        }
+                    }
                     else
                     {
-                        // Single mode reset (original behavior)
+                        // Single mode reset (original behavior for ImageFolderReader)
                         // Double-check that fullSystem still exists and needs reset
                         if(fullSystem == nullptr)
                         {
@@ -1535,7 +1926,7 @@ int main( int argc, char** argv )
                 {
                     // If reset is needed but we're past frame 250, just mark as lost
                     std::lock_guard<std::mutex> lock(fullSystemMutex);
-                    if(enableDualModeFlag)
+                    if(dualModeFlag == 1)
                     {
                         if(fullSystem_raw != nullptr)
                         {
@@ -1545,6 +1936,14 @@ int main( int argc, char** argv )
                         {
                             fullSystem_pipeline->isLost = true;
                         }
+                    }
+                    else if(dualModeFlag == 0 && fullSystem_raw != nullptr)
+                    {
+                        fullSystem_raw->isLost = true;
+                    }
+                    else if(dualModeFlag == 2 && fullSystem_pipeline != nullptr)
+                    {
+                        fullSystem_pipeline->isLost = true;
                     }
                     else if(fullSystem != nullptr)
                     {
@@ -1556,7 +1955,7 @@ int main( int argc, char** argv )
             // Check if system is lost (with mutex protection)
             {
                 std::lock_guard<std::mutex> lock(fullSystemMutex);
-                if(enableDualModeFlag)
+                if(dualModeFlag == 1)
                 {
                     if((fullSystem_raw != nullptr && fullSystem_raw->isLost) ||
                        (fullSystem_pipeline != nullptr && fullSystem_pipeline->isLost))
@@ -1713,7 +2112,7 @@ int main( int argc, char** argv )
                     // Close viewer to exit GUI loop (for camera mode)
                     if(cameraReaderPtr != nullptr)
                     {
-                        if(enableDualMode)
+                        if(dualModeFlag == 1)
                         {
                             printf(">>> Closing dual viewer...\n");
                             if(dualViewer != nullptr)
@@ -1738,7 +2137,7 @@ int main( int argc, char** argv )
         });
     }
 
-    if(enableDualMode && dualViewer != 0)
+    if(dualMode == 1 && dualViewer != 0)
     {
         // Dual mode: run dual viewer
         // Start tracking thread first (it runs in parallel)
@@ -1833,7 +2232,7 @@ int main( int argc, char** argv )
             usleep(50000);  // 50ms
             
             viewer->run();
-            printf("GUI window closed.\n");
+            printf("GUI window closed (viewer->run() returned).\n");
         } catch(const std::exception& e) {
             printf("ERROR: Exception in viewer: %s\n", e.what());
             printf("Keeping viewer window open for inspection...\n");
@@ -1867,7 +2266,7 @@ int main( int argc, char** argv )
                 runthread.detach();
             } else {
                 // Normal case - wait for thread to finish
-                runthread.join();
+            runthread.join();
             }
         }
     }
@@ -1888,7 +2287,7 @@ int main( int argc, char** argv )
 	gettimeofday(&tv_end, NULL);
 	double totalTime = (tv_end.tv_sec - tv_start_global.tv_sec) + (tv_end.tv_usec - tv_start_global.tv_usec) / 1000000.0;
 	int totalFramesProcessed = frameIndex_global;
-	
+
 	// Export data before cleanup
 	printf("\n==================== EXPORTING DATA ====================\n");
 	printf("Saving point cloud, camera poses, and video...\n");
@@ -1901,8 +2300,8 @@ int main( int argc, char** argv )
 		printf("Using camera FPS: %.2f for video export\n", cameraFPS);
 	}
 	
-	// Save complete recorded video if in camera mode
-	if(cameraReaderPtr != nullptr && !cameraReaderPtr->isVideoFile)
+	// Save complete recorded video if in camera mode and saveVideo is enabled
+	if(saveVideo && cameraReaderPtr != nullptr && !cameraReaderPtr->isVideoFile)
 	{
 		std::lock_guard<std::mutex> framesLock(framesMutex);
 		if(!capturedFrames.empty())
@@ -1922,10 +2321,14 @@ int main( int argc, char** argv )
 			printf("WARNING: No frames were recorded for video export\n");
 		}
 	}
+	else if(cameraReaderPtr != nullptr && !cameraReaderPtr->isVideoFile && !saveVideo)
+	{
+		printf("Video recording disabled (save_video=0). Skipping video export.\n");
+	}
 	
 	{
 		std::lock_guard<std::mutex> lock(fullSystemMutex);
-		if(enableDualMode && fullSystem_raw != nullptr && fullSystem_pipeline != nullptr)
+		if(dualMode == 1 && fullSystem_raw != nullptr && fullSystem_pipeline != nullptr)
 		{
 			// Dual mode: export both results separately
 			std::string outputDirRaw = "dso_output/raw";
@@ -1943,7 +2346,7 @@ int main( int argc, char** argv )
 					} else {
 						IOWrap::DataExporter::exportAll(fullSystem_raw, nullptr, capturedFrames, outputDirRaw, cameraFPS);
 					}
-					printf("Raw reconstruction export completed successfully!\n");
+				printf("Raw reconstruction export completed successfully!\n");
 					
 					// Export quantitative metrics for raw
 					printf("Exporting quantitative metrics for raw reconstruction...\n");
@@ -1970,7 +2373,7 @@ int main( int argc, char** argv )
 					} else {
 						IOWrap::DataExporter::exportAll(fullSystem_pipeline, nullptr, capturedFrames, outputDirPipeline, cameraFPS);
 					}
-					printf("Pipeline reconstruction export completed successfully!\n");
+				printf("Pipeline reconstruction export completed successfully!\n");
 					
 					// Export quantitative metrics for pipeline
 					printf("Exporting quantitative metrics for pipeline reconstruction...\n");
@@ -1987,6 +2390,64 @@ int main( int argc, char** argv )
 			
 			printf("=======================================================\n\n");
 			printf("All done! Files saved to: %s and %s\n", outputDirRaw.c_str(), outputDirPipeline.c_str());
+		}
+		else if(dualMode == 0 && fullSystem_raw != nullptr)
+		{
+			// Raw only mode: export raw result
+			std::string outputDir = "dso_output/raw";
+			try {
+				// Export even if crashed - save what we have
+				if(rawSystemCrashed) {
+					printf("WARNING: Raw system crashed, but exporting available data...\n");
+				}
+				printf("Exporting raw reconstruction to: %s\n", outputDir.c_str());
+				if(viewer != nullptr) {
+					IOWrap::DataExporter::exportAll(fullSystem_raw, viewer, capturedFrames, outputDir, cameraFPS);
+				} else {
+					IOWrap::DataExporter::exportAll(fullSystem_raw, nullptr, capturedFrames, outputDir, cameraFPS);
+				}
+				printf("Raw reconstruction export completed successfully!\n");
+				
+				// Export quantitative metrics
+				printf("Exporting quantitative metrics...\n");
+				std::string metricsFile = outputDir + "/quantitative_metrics.txt";
+				IOWrap::DataExporter::exportQuantitativeMetrics(fullSystem_raw, nullptr, metricsFile, true, totalFramesProcessed, totalTime);
+			} catch(const std::exception& e) {
+				printf("ERROR: Exception during raw data export: %s\n", e.what());
+			} catch(...) {
+				printf("ERROR: Unknown exception during raw data export\n");
+			}
+			printf("=======================================================\n\n");
+			printf("All done! Files saved to: %s\n", outputDir.c_str());
+		}
+		else if(dualMode == 2 && fullSystem_pipeline != nullptr)
+		{
+			// Pipeline only mode: export pipeline result
+			std::string outputDir = "dso_output/pipeline";
+			try {
+				// Export even if crashed - save what we have
+				if(pipelineSystemCrashed) {
+					printf("WARNING: Pipeline system crashed, but exporting available data...\n");
+				}
+				printf("Exporting pipeline reconstruction to: %s\n", outputDir.c_str());
+				if(viewer != nullptr) {
+					IOWrap::DataExporter::exportAll(fullSystem_pipeline, viewer, capturedFrames, outputDir, cameraFPS);
+				} else {
+					IOWrap::DataExporter::exportAll(fullSystem_pipeline, nullptr, capturedFrames, outputDir, cameraFPS);
+				}
+				printf("Pipeline reconstruction export completed successfully!\n");
+				
+				// Export quantitative metrics
+				printf("Exporting quantitative metrics...\n");
+				std::string metricsFile = outputDir + "/quantitative_metrics.txt";
+				IOWrap::DataExporter::exportQuantitativeMetrics(fullSystem_pipeline, nullptr, metricsFile, false, totalFramesProcessed, totalTime);
+			} catch(const std::exception& e) {
+				printf("ERROR: Exception during pipeline data export: %s\n", e.what());
+			} catch(...) {
+				printf("ERROR: Unknown exception during pipeline data export\n");
+			}
+			printf("=======================================================\n\n");
+			printf("All done! Files saved to: %s\n", outputDir.c_str());
 		}
 		else if(fullSystem != nullptr)
 		{
@@ -2021,44 +2482,63 @@ int main( int argc, char** argv )
 
 	// Close Pangolin viewers properly BEFORE calculating detailed metrics
 	printf("\n==================== CLOSING PANGOLIN ====================\n");
-	if(enableDualMode && dualViewer != nullptr)
+	if(dualMode == 1 && dualViewer != nullptr)
 	{
 		printf("Closing dual Pangolin viewer...\n");
 		try {
+			// First, force quit Pangolin to exit the run() loop immediately
+			// This must be called before close() to ensure the loop exits
+			pangolin::Quit();
+			// Then mark viewer as closed
 			dualViewer->close();
 			// Wait a bit for viewer to finish
-			usleep(100000); // 100ms
+			usleep(50000); // 50ms
+			printf("Dual Pangolin viewer closed successfully.\n");
 		} catch(const std::exception& e) {
 			printf("WARNING: Exception closing dual viewer: %s\n", e.what());
+			// Force quit anyway
+			try {
+				pangolin::Quit();
+			} catch(...) {}
 		} catch(...) {
 			printf("WARNING: Unknown exception closing dual viewer\n");
+			// Force quit anyway
+			try {
+				pangolin::Quit();
+			} catch(...) {}
 		}
 	}
 	else if(viewer != nullptr)
 	{
 		printf("Closing Pangolin viewer...\n");
 		try {
+			// First, force quit Pangolin to exit the run() loop immediately
+			// This must be called before close() to ensure the loop exits
+			pangolin::Quit();
+			// Then mark viewer as closed
 			viewer->close();
 			// Wait a bit for viewer to finish
-			usleep(100000); // 100ms
+			usleep(50000); // 50ms
+			printf("Pangolin viewer closed successfully.\n");
 		} catch(const std::exception& e) {
 			printf("WARNING: Exception closing viewer: %s\n", e.what());
+			// Force quit anyway
+			try {
+				pangolin::Quit();
+			} catch(...) {}
 		} catch(...) {
 			printf("WARNING: Unknown exception closing viewer\n");
+			// Force quit anyway
+			try {
+				pangolin::Quit();
+			} catch(...) {}
 		}
 	}
 	
-	// Destroy Pangolin window
-	try {
-		pangolin::DestroyWindow("Main");
-		pangolin::DestroyWindow("DSO: Raw (Left) | Pipeline (Right)");
-		pangolin::Quit();
-		printf("Pangolin windows destroyed successfully.\n");
-	} catch(const std::exception& e) {
-		printf("WARNING: Exception destroying Pangolin windows: %s\n", e.what());
-	} catch(...) {
-		printf("WARNING: Unknown exception destroying Pangolin windows\n");
-	}
+	// Note: pangolin::Quit() has already been called above, which should clean up all windows
+	// We don't need to explicitly destroy windows - pangolin::Quit() handles that
+	// Additional cleanup is idempotent and safe to skip
+	printf("Pangolin cleanup completed.\n");
 	printf("=======================================================\n\n");
 	
 	// Now calculate detailed metrics from exported files (after Pangolin is closed)
@@ -2066,7 +2546,7 @@ int main( int argc, char** argv )
 	printf("\n==================== CALCULATING DETAILED METRICS ====================\n");
 	{
 		std::lock_guard<std::mutex> lock(fullSystemMutex);
-		if(enableDualMode)
+		if(dualMode == 1)
 		{
 		// Calculate detailed metrics for raw (even if crashed)
 		// Always calculate metrics to save what we have, since export happens automatically
@@ -2111,11 +2591,11 @@ int main( int argc, char** argv )
 		}
 	}
 	printf("=======================================================\n\n");
-	
+
 	// Clean up with mutex protection
 	{
 		std::lock_guard<std::mutex> lock(fullSystemMutex);
-		if(enableDualMode && fullSystem_raw != nullptr && fullSystem_pipeline != nullptr)
+		if(dualMode == 1 && fullSystem_raw != nullptr && fullSystem_pipeline != nullptr)
 		{
 			// Clean up dual mode
 			if(fullSystem_raw != nullptr)
