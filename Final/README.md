@@ -1,13 +1,14 @@
 # DSO-SLAM: Direct Sparse Odometry for macOS
 
-Enhanced DSO (Direct Sparse Odometry) implementation with macOS (Apple Silicon) support, OpenCV 4 compatibility, and real-time USB camera input.
+Enhanced DSO (Direct Sparse Odometry) implementation with macOS (Apple Silicon) support, OpenCV 4 compatibility, real-time USB camera input, video file support, and dual-mode reconstruction pipeline.
 
 ## Features
 
 - **Real-time Visual Odometry**: Monocular SLAM with direct sparse tracking
-- **USB Camera Support**: Live camera feed processing with interactive controls
-- **Image Preprocessing**: Photometric calibration, vignetting removal, and enhancement pipeline
-- **Data Export**: Automatic export of point clouds, camera poses, and video
+- **Multiple Input Sources**: USB camera, video files, and image sequences
+- **Dual-Mode Reconstruction**: Compare raw and processed pipeline results side-by-side
+- **Image Preprocessing Pipeline**: Photometric calibration, gamma correction, exposure compensation, vignetting removal, and geometric undistortion
+- **Automatic Data Export**: Point clouds, camera poses, quantitative metrics, and videos
 - **macOS Optimized**: Full support for Apple Silicon (ARM64) architecture
 
 ## Requirements
@@ -47,43 +48,51 @@ The executable will be available at `dso/build/bin/dso_dataset`.
 
 ### Camera Calibration
 
-Generate calibration file using `calibration.py`:
+#### Geometric Calibration
+Generate camera calibration file using `utils/calibration.py`:
 ```bash
-python calibration.py
+python utils/calibration.py
 ```
 
-This creates `calib.npz` with camera intrinsics, distortion coefficients, vignette mask, and CRF LUT.
+This creates `camera.txt` with camera intrinsics and distortion coefficients.
 
-### Image Preprocessing
-
-Enhance images for better SLAM performance:
+#### Photometric Calibration
+Generate photometric calibration using `online_photometric_calibration`:
 ```bash
-python cv.py --input_path ./path/to/input/images --output_path ./path/to/output/images
+cd online_photometric_calibration/build
+./bin/online_pcalib_demo --input-dir /path/to/images --output-dir /path/to/output --no-wait
 ```
 
-The preprocessing pipeline includes:
-- Gamma correction
-- Photometric calibration
-- Exposure compensation
-- Vignetting removal
-- Undistortion
-- Brightness/contrast enhancement
+This creates:
+- `pcalib.txt`: Inverse camera response function (256 values)
+- `vignette.png`: Vignetting mask (16-bit grayscale PNG)
 
 ### Running DSO-SLAM
 
 #### USB Camera Mode
 ```bash
 cd dso/build
-bin/dso_dataset camera=0 calib=/path/to/camera.txt preset=0 mode=2
+bin/dso_dataset camera=0 calib=/path/to/camera.txt gamma=/path/to/pcalib.txt vignette=/path/to/vignette.png dual=1
 ```
 
 **Interactive Controls:**
 - Press `s` to start processing
 - Press `e` to stop and save results
 
+**Options:**
+- `save_video=1`: Enable video recording (default: 0, disabled to reduce frame drops)
+- `dual=0`: Raw path only (photometric calibration only)
+- `dual=1`: Both raw and pipeline paths (side-by-side comparison)
+- `dual=2`: Pipeline path only (full preprocessing pipeline)
+
+#### Video File Mode
+```bash
+bin/dso_dataset video=/path/to/video.mp4 calib=/path/to/camera.txt gamma=/path/to/pcalib.txt vignette=/path/to/vignette.png dual=1
+```
+
 #### Image Sequence Mode
 ```bash
-bin/dso_dataset files=/path/to/images calib=/path/to/camera.txt preset=0 mode=2
+bin/dso_dataset files=/path/to/images calib=/path/to/camera.txt gamma=/path/to/pcalib.txt vignette=/path/to/vignette.png
 ```
 
 ### Command-Line Arguments
@@ -91,55 +100,132 @@ bin/dso_dataset files=/path/to/images calib=/path/to/camera.txt preset=0 mode=2
 | Argument | Description | Options |
 |----------|-------------|---------|
 | `camera=N` | USB camera device index | `0` (default), `1`, `2`, ... |
+| `video=XXX` | Path to input video file | `.mp4`, `.avi`, `.mov`, etc. |
 | `files=XXX` | Path to image folder or ZIP archive | - |
 | `calib=XXX` | Path to camera calibration file | Required |
+| `gamma=XXX` | Photometric calibration file (`pcalib.txt`) | Optional, recommended |
+| `vignette=XXX` | Vignetting mask image (`vignette.png`) | Optional, recommended |
+| `dual=N` | Dual-mode reconstruction | `0`=raw only, `1`=both, `2`=pipeline only |
+| `save_video=N` | Save video in camera mode | `0`=disabled (default), `1`=enabled |
+| `clahe=N` | Enable CLAHE in pipeline | `0`=disabled (default), `1`=enabled |
 | `preset=N` | Processing preset | `0`=default, `1`=real-time, `2`=fast |
 | `mode=N` | Photometric mode | `0`=with calib, `1`=no calib, `2`=no distortion |
-| `gamma=XXX` | Photometric gamma calibration file | Optional |
-| `vignette=XXX` | Vignetting mask image | Optional |
+
+### Preprocessing Pipeline
+
+The pipeline path (`dual=1` or `dual=2`) applies the following processing steps in order:
+
+1. **Gamma Correction**: Linearize gamma-compressed RGB image (γ=2.2)
+2. **Fixed Gain Exposure Compensation**: Apply uniform scaling factor computed from first frame
+3. **Grayscale Conversion**: Convert to single-channel using BT.709 weights
+4. **Bilateral Filter Denoising**: Light edge-preserving noise reduction
+5. **Photometric Undistortion**: Apply CRF inverse (`pcalib.txt`) and vignetting correction (`vignette.png`)
+6. **Geometric Undistortion**: Apply lens distortion correction using camera intrinsics
+
+**Note**: The raw path (`dual=0`) only applies photometric undistortion (CRF + vignette) without the preprocessing pipeline.
 
 ### Output
 
-Results are saved in `dso_output/`:
-- `camera_poses.txt`: Camera trajectory (TUM format: timestamp tx ty tz qx qy qz qw)
-- `point_cloud.ply`: 3D point cloud with colors
-- `output_video.mp4`: Processed video (if available)
-- `result.txt`: DSO internal results
+Results are saved based on the `dual` mode:
+
+#### Dual Mode (`dual=1`)
+- `dso_output/raw/`: Raw path reconstruction
+  - `camera_poses.txt`: Camera trajectory (TUM format)
+  - `point_cloud.ply`: 3D point cloud with colors
+  - `quantitative_metrics.txt`: Comprehensive evaluation metrics
+  - `output_video.mp4`: Processed video (if available)
+- `dso_output/pipeline/`: Pipeline path reconstruction
+  - Same files as above
+
+#### Single Mode (`dual=0` or `dual=2`)
+- `dso_output/raw/` (for `dual=0`) or `dso_output/pipeline/` (for `dual=2`)
+  - Same files as above
+
+#### Camera Mode Additional Output
+- `dso_output/recorded_camera_video.mp4`: Complete recorded video (only if `save_video=1`)
+
+### Quantitative Metrics
+
+The `quantitative_metrics.txt` file includes:
+
+**Trajectory Quality:**
+- Translation Smoothness
+- Rotation Smoothness
+- Tracking Robustness
+- Temporal Consistency
+- Trajectory Drift
+- Relative Pose Error (RPE)
+- Scale Drift
+
+**Point Cloud Quality:**
+- Total Points
+- Density (points/m³)
+- Uniformity
+- Map Coverage Ratio
+- Completeness
+
+**System Performance:**
+- Processing Speed (FPS)
+- Average Latency per Frame
+- Keyframe Ratio
 
 ## Project Structure
 
 ```
 .
-├── dso/                    # DSO source code
+├── dso/                           # DSO source code
 │   ├── src/
-│   │   ├── main_dso_pangolin.cpp
-│   │   ├── util/           # CameraReader, DataExporter
-│   │   └── IOWrapper/      # Input/Output wrappers
-│   └── build/              # Build directory
-├── Pangolin/               # Visualization library
-├── utils/                  # Image processing utilities
-│   ├── usb_baseline_pipeline.py
-│   └── build.py
-├── calibration.py          # Camera calibration script
-└── cv.py                   # Image preprocessing script
+│   │   ├── main_dso_pangolin.cpp  # Main executable
+│   │   ├── util/                  # CameraReader, DataExporter, PipelineProcessor
+│   │   └── IOWrapper/             # Input/Output wrappers
+│   │       └── Pangolin/          # DualPangolinDSOViewer, PangolinDSOViewer
+│   └── build/                     # Build directory
+├── Pangolin/                      # Visualization library
+├── online_photometric_calibration/ # Photometric calibration tool
+├── utils/                         # Image processing utilities
+│   ├── calibration.py            # Camera geometric calibration
+│   └── video_to_images.py        # Video to image sequence converter
+├── main.sh                        # Automated pipeline script
+└── visualize_pipeline.py         # Pipeline visualization tool
 ```
+
+## Automated Pipeline
+
+Use `main.sh` to automate the entire process from video to reconstruction:
+
+```bash
+./main.sh /path/to/input/folder
+```
+
+This script will:
+1. Find video files in the input folder
+2. Convert video to image sequence
+3. Run photometric calibration
+4. Generate camera calibration file (if missing)
+5. Run DSO reconstruction
+6. Save results to `input_folder/dso_output/`
 
 ## Key Features
 
 ### Real-time Processing
 - Thread-safe camera access
 - Interactive keyboard controls
-- Real-time 3D visualization
+- Real-time 3D visualization with Pangolin
+- Side-by-side comparison in dual mode
 
-### Image Enhancement
-- Photometric calibration pipeline
-- Adaptive exposure compensation
-- Conservative brightness/contrast enhancement (maintains photometric consistency for SLAM)
+### Image Preprocessing
+- **Gamma Correction**: Linearizes gamma-compressed images for direct methods
+- **Fixed Gain Exposure**: Maintains photometric consistency across frames
+- **Bilateral Filtering**: Edge-preserving denoising without gradient loss
+- **Photometric Calibration**: CRF and vignetting correction
+- **Geometric Undistortion**: Lens distortion correction
 
 ### Data Export
 - Point cloud export from all keyframes
 - Complete camera trajectory (all frames, not just keyframes)
+- Quantitative metrics calculation
 - Video export of processed frames
+- Automatic metrics calculation from exported files
 
 ## Troubleshooting
 
@@ -149,20 +235,25 @@ Results are saved in `dso_output/`:
 - Verify CMake finds all libraries
 
 **Camera not detected:**
-- Check camera permissions in System Preferences
-- Try different camera indices
+- Check camera permissions in System Preferences → Security & Privacy
+- Try different camera indices (`camera=0`, `camera=1`, etc.)
 - Ensure camera is not used by another application
 
 **Poor tracking quality:**
-- Use accurate camera calibration
+- Use accurate camera calibration (geometric + photometric)
 - Ensure sufficient scene texture
-- Avoid excessive image enhancement (maintains photometric consistency)
+- Use photometric calibration files (`pcalib.txt`, `vignette.png`)
+- Avoid excessive motion during initialization
 - Use appropriate preset for hardware capabilities
 
-**Scale drift in turns:**
-- Reduce brightness/contrast enhancement parameters
-- Ensure consistent lighting conditions
-- Use conservative preprocessing settings
+**Frame drops in camera mode:**
+- Disable video recording: `save_video=0` (default)
+- Use `preset=2` for faster processing
+- Reduce image resolution in camera settings
+
+**Pangolin viewer not closing:**
+- The viewer should close automatically after export
+- Press `Ctrl+C` if it hangs (data is already saved)
 
 ## License
 

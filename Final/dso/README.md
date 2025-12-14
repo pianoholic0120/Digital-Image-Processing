@@ -20,6 +20,10 @@ Required. Install with
 
 		sudo apt-get install libsuitesparse-dev libeigen3-dev libboost-all-dev
 
+On macOS:
+```bash
+brew install eigen suitesparse boost
+```
 
 
 #### 2.2 Optional Dependencies
@@ -35,6 +39,11 @@ if you want to stay away from OpenCV.
 Install with
 
 	sudo apt-get install libopencv-dev
+
+On macOS:
+```bash
+brew install opencv
+```
 
 
 ##### Pangolin (highly recommended).
@@ -79,8 +88,6 @@ OpenCV and Pangolin need to be installed.
 
 
 
-
-
 ### 3 Usage
 Run on a dataset from [https://vision.in.tum.de/mono-dataset](https://vision.in.tum.de/mono-dataset) using
 
@@ -91,6 +98,41 @@ Run on a dataset from [https://vision.in.tum.de/mono-dataset](https://vision.in.
 			vignette=XXXXX/sequence_XX/vignette.png \
 			preset=0 \
 			mode=0
+
+#### 3.0 Enhanced Features (This Implementation)
+
+This implementation includes several enhancements:
+
+**Multiple Input Sources:**
+- `camera=N`: USB camera input (e.g., `camera=0`)
+- `video=XXX`: Video file input (e.g., `video=/path/to/video.mp4`)
+- `files=XXX`: Image folder or ZIP archive (original DSO behavior)
+
+**Dual-Mode Reconstruction:**
+- `dual=0`: Raw path only (photometric calibration only, no preprocessing pipeline)
+- `dual=1`: Both raw and pipeline paths (side-by-side comparison in Pangolin viewer)
+- `dual=2`: Pipeline path only (full preprocessing pipeline)
+
+**Preprocessing Pipeline** (applied when `dual=1` or `dual=2`):
+1. Gamma correction (γ=2.2)
+2. Fixed gain exposure compensation
+3. Grayscale conversion (BT.709)
+4. Bilateral filter denoising
+5. Photometric undistortion (CRF + vignette)
+6. Geometric undistortion
+
+**Additional Options:**
+- `save_video=N`: Save recorded video in camera mode (`0`=disabled, `1`=enabled, default: `0`)
+- `clahe=N`: Enable CLAHE in pipeline (`0`=disabled, `1`=enabled, default: `0`)
+
+**Output Structure:**
+- Dual mode (`dual=1`): Results saved to `dso_output/raw/` and `dso_output/pipeline/`
+- Single mode (`dual=0` or `dual=2`): Results saved to `dso_output/raw/` or `dso_output/pipeline/`
+- Each output directory contains:
+  - `camera_poses.txt`: Camera trajectory (TUM format)
+  - `point_cloud.ply`: 3D point cloud with colors
+  - `quantitative_metrics.txt`: Comprehensive evaluation metrics
+  - `output_video.mp4`: Processed video (if available)
 
 See [https://github.com/JakobEngel/dso_ros](https://github.com/JakobEngel/dso_ros) for a minimal example on
 how the library can be used from another project. It should be straight forward to implement extentions for 
@@ -208,6 +250,13 @@ there are many command line options available, see `main_dso_pangolin.cpp`. some
 - `quiet=1`: disable most console output (good for performance)
 - `sampleoutput=1`: register a "SampleOutputWrapper", printing some sample output data to the commandline. meant as example.
 
+**Enhanced Options (This Implementation):**
+- `camera=N`: USB camera device index (e.g., `camera=0`)
+- `video=XXX`: Input video file path
+- `dual=N`: Dual-mode reconstruction (`0`=raw, `1`=both, `2`=pipeline)
+- `save_video=N`: Save video in camera mode (`0`=disabled, `1`=enabled)
+- `clahe=N`: Enable CLAHE in pipeline (`0`=disabled, `1`=enabled)
+
 
 
 #### 3.3 Runtime Options
@@ -230,6 +279,12 @@ be performed in the callbacks, a better practice is to just copy over / publish 
 
 Per default, `dso_dataset` writes all keyframe poses to a file `result.txt` at the end of a sequence,
 using the TUM RGB-D / TUM monoVO format ([timestamp x y z qx qy qz qw] of the cameraToWorld transformation).
+
+**Enhanced Data Export (This Implementation):**
+- Automatic export of `camera_poses.txt` (all frames, not just keyframes)
+- Automatic export of `point_cloud.ply` (from all keyframes)
+- Automatic calculation of `quantitative_metrics.txt` (comprehensive evaluation metrics)
+- Video export (`output_video.mp4` and `recorded_camera_video.mp4`)
 
 
 
@@ -255,7 +310,8 @@ using the TUM RGB-D / TUM monoVO format ([timestamp x y z qx qy qz qw] of the ca
 
 
 #### Photometric Calibration
-Use a photometric calibration (e.g. using [https://github.com/tum-vision/mono_dataset_code](https://github.com/tum-vision/mono_dataset_code) ).
+Use a photometric calibration (e.g. using [https://github.com/tum-vision/mono_dataset_code](https://github.com/tum-vision/mono_dataset_code) or the included `online_photometric_calibration` tool).
+
 
 #### Translation vs. Rotation
 DSO cannot do magic: if you rotate the camera too much without translation, it will fail. Since it is a pure visual odometry, it cannot recover by re-localizing, or track through strong rotations by using previously triangulated geometry.... everything that leaves the field of view is marginalized immediately.
