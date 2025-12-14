@@ -166,8 +166,6 @@ set(dso_SOURCE_FILES
   ${PROJECT_SOURCE_DIR}/src/util/settings.cpp
   ${PROJECT_SOURCE_DIR}/src/util/Undistort.cpp
   ${PROJECT_SOURCE_DIR}/src/util/globalCalib.cpp
-  ${PROJECT_SOURCE_DIR}/src/util/PipelineProcessor.cpp
-  ${PROJECT_SOURCE_DIR}/src/util/CameraReader.cpp
 )
 
 
@@ -213,8 +211,7 @@ if (Pangolin_FOUND)
     endif()
 	set(dso_pangolin_SOURCE_FILES 
 	  ${PROJECT_SOURCE_DIR}/src/IOWrapper/Pangolin/KeyFrameDisplay.cpp
-	  ${PROJECT_SOURCE_DIR}/src/IOWrapper/Pangolin/PangolinDSOViewer.cpp
-	  ${PROJECT_SOURCE_DIR}/src/IOWrapper/Pangolin/DualPangolinDSOViewer.cpp)
+	  ${PROJECT_SOURCE_DIR}/src/IOWrapper/Pangolin/PangolinDSOViewer.cpp)
 	set(HAS_PANGOLIN 1)
 else ()
 	message("--- could not find PANGOLIN, not compiling dso_pangolin library.")
