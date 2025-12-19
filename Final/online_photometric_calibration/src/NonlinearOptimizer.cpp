@@ -290,10 +290,36 @@ double NonlinearOptimizer::evfOptimization(bool show_debug_prints)
     
     int real_number_of_residuals = residual_id+1;
     
+    // Check if we have any valid residuals
+    if(real_number_of_residuals <= 0)
+    {
+        std::cerr << "Warning: No valid residuals found for optimization. Skipping ECA optimization." << std::endl;
+        return 0.0; // Return zero error since we can't optimize
+    }
+    
     // Get only the relevant part of the Jacobian (actual number of residuals)
+    // Note: cv::Rect(x, y, width, height) but Mat is (rows, cols) = (height, width)
+    // So we need to use cv::Rect(0, 0, num_parameters, real_number_of_residuals)
+    // which means: x=0, y=0, width=num_parameters, height=real_number_of_residuals
+    // This extracts a submatrix of size (real_number_of_residuals x num_parameters)
+    if(real_number_of_residuals > num_residuals)
+    {
+        std::cerr << "Error: real_number_of_residuals (" << real_number_of_residuals 
+                  << ") > num_residuals (" << num_residuals << ")" << std::endl;
+        return 0.0;
+    }
+    
     Jacobian = Jacobian(cv::Rect(0,0,num_parameters,real_number_of_residuals));
     Weights_Jacobian = Weights_Jacobian(cv::Rect(0,0,num_parameters,real_number_of_residuals));
     Residuals = Residuals(cv::Rect(0,0,1,real_number_of_residuals));
+    
+    // Check if matrices are empty after extraction
+    if(Jacobian.rows == 0 || Jacobian.cols == 0)
+    {
+        std::cerr << "Error: Jacobian matrix is empty after extraction (rows=" << Jacobian.rows 
+                  << ", cols=" << Jacobian.cols << ")" << std::endl;
+        return 0.0;
+    }
     
     // Transpose the Jacobian, calculate J^T * W *J * X = - J^T * W * r
     cv::Mat Jacobian_T;
@@ -583,6 +609,12 @@ double NonlinearOptimizer::radianceFullOptimization()
                 }
 
                 // Todo: change to use a local variable
+                // Check for division by zero
+                if(left_side_sum < 1e-10)
+                {
+                    // Skip this radiance update if left_side_sum is too small
+                    break;
+                }
                 points_to_optimize->at(p).radiances.at(r) = radiance_guess - lambda * (right_side_sum/left_side_sum);
                 if(points_to_optimize->at(p).radiances.at(r) < 0.001)
                 { 
