@@ -80,10 +80,16 @@ CoarseInitializer::~CoarseInitializer()
 
 bool CoarseInitializer::trackFrame(FrameHessian* newFrameHessian, std::vector<IOWrap::Output3DWrapper*> &wraps)
 {
+	printf("[DEBUG] trackFrame: Starting trackFrame\n");
+	fflush(stdout);
 	newFrame = newFrameHessian;
 
+	printf("[DEBUG] trackFrame: Calling pushLiveFrame\n");
+	fflush(stdout);
     for(IOWrap::Output3DWrapper* ow : wraps)
         ow->pushLiveFrame(newFrameHessian);
+	printf("[DEBUG] trackFrame: Finished pushLiveFrame\n");
+	fflush(stdout);
 
 	int maxIterations[] = {5,5,10,30,50};
 
@@ -121,15 +127,28 @@ bool CoarseInitializer::trackFrame(FrameHessian* newFrameHessian, std::vector<IO
 	Vec3f latestRes = Vec3f::Zero();
 	for(int lvl=pyrLevelsUsed-1; lvl>=0; lvl--)
 	{
+		printf("[DEBUG] trackFrame: Processing pyramid level %d\n", lvl);
+		fflush(stdout);
 
-
-
-		if(lvl<pyrLevelsUsed-1)
+		if(lvl<pyrLevelsUsed-1) {
+			printf("[DEBUG] trackFrame: Calling propagateDown(%d)\n", lvl+1);
+			fflush(stdout);
 			propagateDown(lvl+1);
+			printf("[DEBUG] trackFrame: Finished propagateDown(%d)\n", lvl+1);
+			fflush(stdout);
+		}
 
 		Mat88f H,Hsc; Vec8f b,bsc;
+		printf("[DEBUG] trackFrame: Calling resetPoints(%d)\n", lvl);
+		fflush(stdout);
 		resetPoints(lvl);
+		printf("[DEBUG] trackFrame: Finished resetPoints(%d)\n", lvl);
+		fflush(stdout);
+		printf("[DEBUG] trackFrame: Calling calcResAndGS(%d) - this may take a while...\n", lvl);
+		fflush(stdout);
 		Vec3f resOld = calcResAndGS(lvl, H, b, Hsc, bsc, refToNew_current, refToNew_aff_current, false);
+		printf("[DEBUG] trackFrame: Finished calcResAndGS(%d)\n", lvl);
+		fflush(stdout);
 		applyStep(lvl);
 
 		float lambda = 0.1;
@@ -154,6 +173,10 @@ bool CoarseInitializer::trackFrame(FrameHessian* newFrameHessian, std::vector<IO
 		int iteration=0;
 		while(true)
 		{
+			if(iteration == 0) {
+				printf("[DEBUG] trackFrame: Starting optimization loop for level %d, iteration %d\n", lvl, iteration);
+				fflush(stdout);
+			}
 			Mat88f Hl = H;
 			for(int i=0;i<8;i++) Hl(i,i) *= (1+lambda);
 			Hl -= Hsc*(1/(1+lambda));
@@ -166,11 +189,28 @@ bool CoarseInitializer::trackFrame(FrameHessian* newFrameHessian, std::vector<IO
 			Vec8f inc;
 			if(fixAffine)
 			{
+				if(iteration == 0) {
+					printf("[DEBUG] trackFrame: Calling ldlt().solve() (fixAffine=true) for level %d\n", lvl);
+					fflush(stdout);
+				}
 				inc.head<6>() = - (wM.toDenseMatrix().topLeftCorner<6,6>() * (Hl.topLeftCorner<6,6>().ldlt().solve(bl.head<6>())));
 				inc.tail<2>().setZero();
+				if(iteration == 0) {
+					printf("[DEBUG] trackFrame: Finished ldlt().solve() for level %d\n", lvl);
+					fflush(stdout);
+				}
 			}
-			else
+			else {
+				if(iteration == 0) {
+					printf("[DEBUG] trackFrame: Calling ldlt().solve() (fixAffine=false) for level %d\n", lvl);
+					fflush(stdout);
+				}
 				inc = - (wM * (Hl.ldlt().solve(bl)));	//=-H^-1 * b.
+				if(iteration == 0) {
+					printf("[DEBUG] trackFrame: Finished ldlt().solve() for level %d\n", lvl);
+					fflush(stdout);
+				}
+			}
 
 
 			SE3 refToNew_new = SE3::exp(inc.head<6>().cast<double>()) * refToNew_current;
@@ -181,8 +221,24 @@ bool CoarseInitializer::trackFrame(FrameHessian* newFrameHessian, std::vector<IO
 
 
 			Mat88f H_new, Hsc_new; Vec8f b_new, bsc_new;
+			if(iteration == 0) {
+				printf("[DEBUG] trackFrame: Calling calcResAndGS(%d) again (iteration %d)\n", lvl, iteration);
+				fflush(stdout);
+			}
 			Vec3f resNew = calcResAndGS(lvl, H_new, b_new, Hsc_new, bsc_new, refToNew_new, refToNew_aff_new, false);
+			if(iteration == 0) {
+				printf("[DEBUG] trackFrame: Finished calcResAndGS(%d) again\n", lvl);
+				fflush(stdout);
+			}
+			if(iteration == 0) {
+				printf("[DEBUG] trackFrame: Calling calcEC(%d)\n", lvl);
+				fflush(stdout);
+			}
 			Vec3f regEnergy = calcEC(lvl);
+			if(iteration == 0) {
+				printf("[DEBUG] trackFrame: Finished calcEC(%d)\n", lvl);
+				fflush(stdout);
+			}
 
 			float eTotalNew = (resNew[0]+resNew[1]+regEnergy[1]);
 			float eTotalOld = (resOld[0]+resOld[1]+regEnergy[0]);
@@ -246,16 +302,24 @@ bool CoarseInitializer::trackFrame(FrameHessian* newFrameHessian, std::vector<IO
 			iteration++;
 		}
 		latestRes = resOld;
+		printf("[DEBUG] trackFrame: Finished processing pyramid level %d\n", lvl);
+		fflush(stdout);
 
 	}
 
-
+	printf("[DEBUG] trackFrame: Finished all pyramid levels, calling propagateUp\n");
+	fflush(stdout);
 
 	thisToNext = refToNew_current;
 	thisToNext_aff = refToNew_aff_current;
 
-	for(int i=0;i<pyrLevelsUsed-1;i++)
+	for(int i=0;i<pyrLevelsUsed-1;i++) {
+		printf("[DEBUG] trackFrame: Calling propagateUp(%d)\n", i);
+		fflush(stdout);
 		propagateUp(i);
+		printf("[DEBUG] trackFrame: Finished propagateUp(%d)\n", i);
+		fflush(stdout);
+	}
 
 
 
@@ -268,10 +332,14 @@ bool CoarseInitializer::trackFrame(FrameHessian* newFrameHessian, std::vector<IO
 
 
 
+	printf("[DEBUG] trackFrame: Calling debugPlot\n");
+	fflush(stdout);
     debugPlot(0,wraps);
+	printf("[DEBUG] trackFrame: Finished debugPlot\n");
+	fflush(stdout);
 
-
-
+	printf("[DEBUG] trackFrame: Returning, snapped=%d, frameID=%d, snappedAt=%d\n", snapped, frameID, snappedAt);
+	fflush(stdout);
 	return snapped && frameID > snappedAt+5;
 }
 
@@ -332,9 +400,13 @@ Vec3f CoarseInitializer::calcResAndGS(
 		const SE3 &refToNew, AffLight refToNew_aff,
 		bool plot)
 {
+	printf("[DEBUG] calcResAndGS: Starting for level %d, w=%d, h=%d\n", lvl, w[lvl], h[lvl]);
+	fflush(stdout);
 	int wl = w[lvl], hl = h[lvl];
 	Eigen::Vector3f* colorRef = firstFrame->dIp[lvl];
 	Eigen::Vector3f* colorNew = newFrame->dIp[lvl];
+	printf("[DEBUG] calcResAndGS: Got color pointers, numPoints[%d]=%d\n", lvl, numPoints[lvl]);
+	fflush(stdout);
 
 	Mat33f RKi = (refToNew.rotationMatrix() * Ki[lvl]).cast<float>();
 	Vec3f t = refToNew.translation().cast<float>();
@@ -353,8 +425,14 @@ Vec3f CoarseInitializer::calcResAndGS(
 
 	int npts = numPoints[lvl];
 	Pnt* ptsl = points[lvl];
+	printf("[DEBUG] calcResAndGS: Starting loop over %d points\n", npts);
+	fflush(stdout);
 	for(int i=0;i<npts;i++)
 	{
+		if(i == 0 || (i % 10000 == 0 && i > 0)) {
+			printf("[DEBUG] calcResAndGS: Processing point %d/%d\n", i, npts);
+			fflush(stdout);
+		}
 
 		Pnt* point = ptsl+i;
 
@@ -582,6 +660,8 @@ Vec3f CoarseInitializer::calcResAndGS(
 
 
 
+	printf("[DEBUG] calcResAndGS: Returning for level %d\n", lvl);
+	fflush(stdout);
 	return Vec3f(E.A, alphaEnergy ,E.num);
 }
 
@@ -631,18 +711,29 @@ Vec3f CoarseInitializer::calcEC(int lvl)
 }
 void CoarseInitializer::optReg(int lvl)
 {
+	printf("[DEBUG] optReg: Starting for level %d, npts=%d, snapped=%d\n", lvl, numPoints[lvl], snapped);
+	fflush(stdout);
 	int npts = numPoints[lvl];
 	Pnt* ptsl = points[lvl];
 	if(!snapped)
 	{
+		printf("[DEBUG] optReg: Not snapped, setting all iR=1\n");
+		fflush(stdout);
 		for(int i=0;i<npts;i++)
 			ptsl[i].iR = 1;
+		printf("[DEBUG] optReg: Finished (not snapped)\n");
+		fflush(stdout);
 		return;
 	}
 
-
+	printf("[DEBUG] optReg: Snapped, processing %d points\n", npts);
+	fflush(stdout);
 	for(int i=0;i<npts;i++)
 	{
+		if(i == 0 || (i % 10000 == 0 && i > 0)) {
+			printf("[DEBUG] optReg: Processing point %d/%d\n", i, npts);
+			fflush(stdout);
+		}
 		Pnt* point = ptsl+i;
 		if(!point->isGood) continue;
 
@@ -663,13 +754,16 @@ void CoarseInitializer::optReg(int lvl)
 			point->iR = (1-regWeight)*point->idepth + regWeight*idnn[nnn/2];
 		}
 	}
-
+	printf("[DEBUG] optReg: Finished for level %d\n", lvl);
+	fflush(stdout);
 }
 
 
 
 void CoarseInitializer::propagateUp(int srcLvl)
 {
+	printf("[DEBUG] propagateUp: Starting for srcLvl=%d\n", srcLvl);
+	fflush(stdout);
 	assert(srcLvl+1<pyrLevelsUsed);
 	// set idepth of target
 
@@ -677,8 +771,12 @@ void CoarseInitializer::propagateUp(int srcLvl)
 	int nptst= numPoints[srcLvl+1];
 	Pnt* ptss = points[srcLvl];
 	Pnt* ptst = points[srcLvl+1];
+	printf("[DEBUG] propagateUp: nptss=%d, nptst=%d\n", nptss, nptst);
+	fflush(stdout);
 
 	// set to zero.
+	printf("[DEBUG] propagateUp: Setting %d parent points to zero\n", nptst);
+	fflush(stdout);
 	for(int i=0;i<nptst;i++)
 	{
 		Pnt* parent = ptst+i;
@@ -686,16 +784,34 @@ void CoarseInitializer::propagateUp(int srcLvl)
 		parent->iRSumNum=0;
 	}
 
+	printf("[DEBUG] propagateUp: Starting loop over %d source points\n", nptss);
+	fflush(stdout);
 	for(int i=0;i<nptss;i++)
 	{
+		if(i == 0 || (i % 10000 == 0 && i > 0)) {
+			printf("[DEBUG] propagateUp: Processing point %d/%d\n", i, nptss);
+			fflush(stdout);
+		}
 		Pnt* point = ptss+i;
 		if(!point->isGood) continue;
+
+		// Check if parent index is valid
+		if(point->parent < 0 || point->parent >= nptst) {
+			if(i < 10 || i % 1000 == 0) {  // Only print first few or every 1000th to avoid spam
+				printf("[DEBUG] propagateUp: ERROR - Invalid parent index! point->parent=%d, nptst=%d, skipping point %d\n", 
+					point->parent, nptst, i);
+				fflush(stdout);
+			}
+			continue;  // Skip invalid parent
+		}
 
 		Pnt* parent = ptst + point->parent;
 		parent->iR += point->iR * point->lastHessian;
 		parent->iRSumNum += point->lastHessian;
 	}
 
+	printf("[DEBUG] propagateUp: Finished loop, updating parent points\n");
+	fflush(stdout);
 	for(int i=0;i<nptst;i++)
 	{
 		Pnt* parent = ptst+i;
@@ -706,21 +822,46 @@ void CoarseInitializer::propagateUp(int srcLvl)
 		}
 	}
 
+	printf("[DEBUG] propagateUp: Calling optReg(%d)\n", srcLvl+1);
+	fflush(stdout);
 	optReg(srcLvl+1);
+	printf("[DEBUG] propagateUp: Finished optReg(%d)\n", srcLvl+1);
+	fflush(stdout);
+	printf("[DEBUG] propagateUp: Returning for srcLvl=%d\n", srcLvl);
+	fflush(stdout);
 }
 
 void CoarseInitializer::propagateDown(int srcLvl)
 {
+	printf("[DEBUG] propagateDown: Starting for srcLvl=%d\n", srcLvl);
+	fflush(stdout);
 	assert(srcLvl>0);
 	// set idepth of target
 
 	int nptst= numPoints[srcLvl-1];
 	Pnt* ptss = points[srcLvl];
 	Pnt* ptst = points[srcLvl-1];
+	printf("[DEBUG] propagateDown: nptst=%d, numPoints[srcLvl]=%d\n", nptst, numPoints[srcLvl]);
+	fflush(stdout);
 
+	printf("[DEBUG] propagateDown: Starting loop over %d points\n", nptst);
+	fflush(stdout);
 	for(int i=0;i<nptst;i++)
 	{
+		if(i == 0 || (i % 10000 == 0 && i > 0)) {
+			printf("[DEBUG] propagateDown: Processing point %d/%d\n", i, nptst);
+			fflush(stdout);
+		}
 		Pnt* point = ptst+i;
+		
+		// Check if parent index is valid
+		if(point->parent < 0 || point->parent >= numPoints[srcLvl]) {
+			printf("[DEBUG] propagateDown: ERROR - Invalid parent index! point->parent=%d, numPoints[srcLvl]=%d, skipping point %d\n", 
+				point->parent, numPoints[srcLvl], i);
+			fflush(stdout);
+			continue;  // Skip invalid parent
+		}
+		
 		Pnt* parent = ptss+point->parent;
 
 		if(!parent->isGood || parent->lastHessian < 0.1) continue;
@@ -736,7 +877,13 @@ void CoarseInitializer::propagateDown(int srcLvl)
 			point->iR = point->idepth = point->idepth_new = newiR;
 		}
 	}
+	printf("[DEBUG] propagateDown: Finished loop, calling optReg(%d)\n", srcLvl-1);
+	fflush(stdout);
 	optReg(srcLvl-1);
+	printf("[DEBUG] propagateDown: Finished optReg(%d)\n", srcLvl-1);
+	fflush(stdout);
+	printf("[DEBUG] propagateDown: Returning for srcLvl=%d\n", srcLvl);
+	fflush(stdout);
 }
 
 
@@ -974,9 +1121,13 @@ void CoarseInitializer::makeNN()
 	KDTree* indexes[PYR_LEVELS];
 	for(int i=0;i<pyrLevelsUsed;i++)
 	{
-		pcs[i] = FLANNPointcloud(numPoints[i], points[i]);
-		indexes[i] = new KDTree(2, pcs[i], nanoflann::KDTreeSingleIndexAdaptorParams(5) );
-		indexes[i]->buildIndex();
+		if(numPoints[i] > 0) {
+			pcs[i] = FLANNPointcloud(numPoints[i], points[i]);
+			indexes[i] = new KDTree(2, pcs[i], nanoflann::KDTreeSingleIndexAdaptorParams(5) );
+			indexes[i]->buildIndex();
+		} else {
+			indexes[i] = nullptr;  // No points at this level
+		}
 	}
 
 	const int nn=10;
@@ -1013,16 +1164,21 @@ void CoarseInitializer::makeNN()
 				pts[i].neighboursDist[k] *= 10/sumDF;
 
 
-			if(lvl < pyrLevelsUsed-1 )
+			if(lvl < pyrLevelsUsed-1 && numPoints[lvl+1] > 0 && indexes[lvl+1] != nullptr)
 			{
 				resultSet1.init(ret_index, ret_dist);
 				pt = pt*0.5f-Vec2f(0.25f,0.25f);
 				indexes[lvl+1]->findNeighbors(resultSet1, (float*)&pt, nanoflann::SearchParams());
 
-				pts[i].parent = ret_index[0];
-				pts[i].parentDist = expf(-ret_dist[0]*NNDistFactor);
-
-				assert(ret_index[0]>=0 && ret_index[0] < numPoints[lvl+1]);
+				// Validate parent index before setting
+				if(ret_index[0] >= 0 && ret_index[0] < numPoints[lvl+1]) {
+					pts[i].parent = ret_index[0];
+					pts[i].parentDist = expf(-ret_dist[0]*NNDistFactor);
+				} else {
+					// Invalid parent index - set to -1
+					pts[i].parent = -1;
+					pts[i].parentDist = -1;
+				}
 			}
 			else
 			{
@@ -1037,7 +1193,8 @@ void CoarseInitializer::makeNN()
 	// done.
 
 	for(int i=0;i<pyrLevelsUsed;i++)
-		delete indexes[i];
+		if(indexes[i] != nullptr)
+			delete indexes[i];
 }
 }
 

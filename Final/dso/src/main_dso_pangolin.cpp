@@ -1145,7 +1145,11 @@ int main( int argc, char** argv )
                     }
                     else if(readerPtr != nullptr)
                     {
+                        printf("[DEBUG] main: Calling readerPtr->getImage(%d)\n", i);
+                        fflush(stdout);
                         img = readerPtr->getImage(i);
+                        printf("[DEBUG] main: readerPtr->getImage(%d) returned, img=%p\n", i, img);
+                        fflush(stdout);
                     }
                 }
 
@@ -1591,7 +1595,11 @@ int main( int argc, char** argv )
                 }
                 
                 try {
+                    printf("[DEBUG] main: Calling fullSystem->addActiveFrame(img, %d)\n", i);
+                    fflush(stdout);
                     fullSystem->addActiveFrame(img, i);
+                    printf("[DEBUG] main: fullSystem->addActiveFrame(img, %d) returned\n", i);
+                    fflush(stdout);
                     img = nullptr;  // Transfer ownership, don't delete
                 } catch(const std::exception& e) {
                     printf("ERROR: Exception in addActiveFrame: %s\n", e.what());

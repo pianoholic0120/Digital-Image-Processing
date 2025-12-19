@@ -921,9 +921,18 @@ void FullSystem::flagPointsForRemoval()
 
 void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 {
-
-    if(isLost) return;
+	printf("[DEBUG] addActiveFrame: Starting for frame id=%d\n", id);
+	fflush(stdout);
+    if(isLost) {
+		printf("[DEBUG] addActiveFrame: System is lost, returning\n");
+		fflush(stdout);
+		return;
+	}
+	printf("[DEBUG] addActiveFrame: Acquiring trackMutex for frame id=%d\n", id);
+	fflush(stdout);
 	boost::unique_lock<boost::mutex> lock(trackMutex);
+	printf("[DEBUG] addActiveFrame: Acquired trackMutex for frame id=%d\n", id);
+	fflush(stdout);
 
 
 	// =========================== add into allFrameHistory =========================
@@ -940,31 +949,46 @@ void FullSystem::addActiveFrame( ImageAndExposure* image, int id )
 
 	// =========================== make Images / derivatives etc. =========================
 	fh->ab_exposure = image->exposure_time;
+	printf("[DEBUG] addActiveFrame: Calling makeImages for frame id=%d\n", id);
+	fflush(stdout);
     fh->makeImages(image->image, &Hcalib);
+	printf("[DEBUG] addActiveFrame: Finished makeImages for frame id=%d\n", id);
+	fflush(stdout);
 
 
 
 
 	if(!initialized)
 	{
+		printf("[DEBUG] addActiveFrame: System not initialized, using initializer for frame id=%d\n", id);
+		fflush(stdout);
 		// use initializer!
 		if(coarseInitializer->frameID<0)	// first frame set. fh is kept by coarseInitializer.
 		{
-
+			printf("[DEBUG] addActiveFrame: Setting first frame (coarseInitializer->setFirst) for frame id=%d\n", id);
+			fflush(stdout);
 			coarseInitializer->setFirst(&Hcalib, fh);
+			printf("[DEBUG] addActiveFrame: Finished setFirst for frame id=%d\n", id);
+			fflush(stdout);
 		}
-		else if(coarseInitializer->trackFrame(fh, outputWrapper))	// if SNAPPED
-		{
-
-			initializeFromInitializer(fh);
-			lock.unlock();
-			deliverTrackedFrame(fh, true);
-		}
-		else
-		{
-			// if still initializing
-			fh->shell->poseValid = false;
-			delete fh;
+		else {
+			printf("[DEBUG] addActiveFrame: Tracking frame (coarseInitializer->trackFrame) for frame id=%d\n", id);
+			fflush(stdout);
+			bool snapped = coarseInitializer->trackFrame(fh, outputWrapper);
+			printf("[DEBUG] addActiveFrame: trackFrame returned snapped=%d for frame id=%d\n", snapped, id);
+			fflush(stdout);
+			if(snapped)	// if SNAPPED
+			{
+				initializeFromInitializer(fh);
+				lock.unlock();
+				deliverTrackedFrame(fh, true);
+			}
+			else
+			{
+				// if still initializing
+				fh->shell->poseValid = false;
+				delete fh;
+			}
 		}
 		return;
 	}

@@ -251,7 +251,11 @@ private:
 		if(!isZipped)
 		{
 			// CHANGE FOR ZIP FILE
+			printf("[DEBUG] getImageRaw_internal: Reading file %s (id=%d)\n", files[id].c_str(), id);
+			fflush(stdout);
 			MinimalImageB* img = IOWrap::readImageBW_8U(files[id]);
+			printf("[DEBUG] getImageRaw_internal: readImageBW_8U returned, img=%p\n", img);
+			fflush(stdout);
 			
 			// Resize image if size doesn't match expected dimensions
 			if(img != nullptr && (img->w != widthOrg || img->h != heightOrg))
@@ -307,12 +311,27 @@ private:
 
 	ImageAndExposure* getImage_internal(int id, int unused)
 	{
+		printf("[DEBUG] getImage_internal: Starting to read image %d\n", id);
+		fflush(stdout);
 		MinimalImageB* minimg = getImageRaw_internal(id, 0);
+		if(minimg == nullptr) {
+			printf("[DEBUG] getImage_internal: ERROR - getImageRaw_internal returned nullptr for image %d\n", id);
+			fflush(stdout);
+			return nullptr;
+		}
+		printf("[DEBUG] getImage_internal: Got raw image %d, size: %d x %d\n", id, minimg->w, minimg->h);
+		fflush(stdout);
+		printf("[DEBUG] getImage_internal: Starting undistort for image %d\n", id);
+		fflush(stdout);
 		ImageAndExposure* ret2 = undistort->undistort<unsigned char>(
 				minimg,
 				(exposures.size() == 0 ? 1.0f : exposures[id]),
 				(timestamps.size() == 0 ? 0.0 : timestamps[id]));
+		printf("[DEBUG] getImage_internal: Finished undistort for image %d\n", id);
+		fflush(stdout);
 		delete minimg;
+		printf("[DEBUG] getImage_internal: Returning processed image %d\n", id);
+		fflush(stdout);
 		return ret2;
 	}
 
